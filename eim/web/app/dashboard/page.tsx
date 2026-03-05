@@ -50,12 +50,20 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DailyStats | null>(null);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
     loadData();
     // 每 30 秒刷新一次数据
     const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
+    // 每秒更新时间
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date().toLocaleString('zh-CN'));
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(timeInterval);
+    };
   }, []);
 
   const loadData = async () => {
@@ -112,7 +120,7 @@ export default function DashboardPage() {
           Equipment Inspection & Operation Management System
         </p>
         <p style={{ fontSize: 14, color: '#999', margin: '8px 0 0' }}>
-          数据更新时间：{new Date().toLocaleString('zh-CN')}
+          数据更新时间：{currentTime || '加载中...'}
         </p>
       </div>
 
