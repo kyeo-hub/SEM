@@ -33,6 +33,10 @@ func GetEquipments(c *gin.Context) {
 	if eqType := c.Query("type"); eqType != "" {
 		filters["type"] = eqType
 	}
+	// 支持按 QR 码 UUID 查询
+	if qrCodeUuid := c.Query("qr_code_uuid"); qrCodeUuid != "" {
+		filters["qr_code_uuid"] = qrCodeUuid
+	}
 
 	list, total, err := equipmentHandler.GetEquipmentList(context.Background(), page, pageSize, filters)
 	if err != nil {

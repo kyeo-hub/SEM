@@ -11,8 +11,10 @@
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "antd": "^6.3.1",
+    "antd-mobile": "^5.42.3",
     "axios": "^1.13.6",
     "dayjs": "^1.11.19",
+    "html5-qrcode": "^2.3.8",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18"
