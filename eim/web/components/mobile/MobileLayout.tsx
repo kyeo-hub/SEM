@@ -16,12 +16,12 @@ interface MobileLayoutProps {
   onBack?: () => void;
 }
 
-export default function MobileLayout({
+const MobileLayout: React.FC<MobileLayoutProps> = ({
   children,
   title = 'EIM',
   showBack = false,
   onBack,
-}: MobileLayoutProps) {
+}) => {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -62,22 +62,12 @@ export default function MobileLayout({
           borderTop: '1px solid #eee',
         }}
       >
-        <TabBar.Item
-          key="/mobile"
-          icon={<AppOutline />}
-          title="首页"
-        />
-        <TabBar.Item
-          key="/mobile/scan"
-          icon={<UnorderedListOutline />}
-          title="扫码"
-        />
-        <TabBar.Item
-          key="/mobile/profile"
-          icon={<UserOutline />}
-          title="我的"
-        />
+        <TabBar.Item key="/mobile" icon={<AppOutline />} title="首页" />
+        <TabBar.Item key="/mobile/scan" icon={<UnorderedListOutline />} title="扫码" />
+        <TabBar.Item key="/mobile/profile" icon={<UserOutline />} title="我的" />
       </TabBar>
     </div>
   );
-}
+};
+
+export default MobileLayout;

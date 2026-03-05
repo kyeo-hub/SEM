@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, Button, Space, Tag, Statistic } from 'antd-mobile';
+import { Card, Button, Space, Tag } from 'antd-mobile';
 import {
   Scan,
   CheckCircle,
