@@ -1,0 +1,12 @@
+node_modules/
+.next/
+*.log
+.env.local
+.git/
+.gitignore
+README.md
+Makefile*
+QUICKSTART.md
+docs/
+dev_progress/
+*.md

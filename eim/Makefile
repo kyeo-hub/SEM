@@ -1,0 +1,68 @@
+.PHONY: help build run test clean docker-up docker-down migrate
+
+# 默认目标
+help:
+	@echo "EIM - 设备点检管理系统"
+	@echo ""
+	@echo "可用命令:"
+	@echo "  make build        - 编译项目"
+	@echo "  make run          - 运行项目"
+	@echo "  make test         - 运行测试"
+	@echo "  make clean        - 清理构建文件"
+	@echo "  make docker-up    - 启动 Docker 服务"
+	@echo "  make docker-down  - 停止 Docker 服务"
+	@echo "  make migrate      - 运行数据库迁移"
+
+# 编译项目
+build:
+	@echo "编译 Go 项目..."
+	@go build -o bin/eim ./cmd/server
+
+# 运行项目
+run:
+	@echo "启动服务..."
+	@go run ./cmd/server
+
+# 运行测试
+test:
+	@echo "运行测试..."
+	@go test -v ./...
+
+# 清理构建文件
+clean:
+	@echo "清理构建文件..."
+	@rm -rf bin/
+	@go clean
+
+# 启动 Docker 服务
+docker-up:
+	@echo "启动 Docker 服务..."
+	@cd docker && docker-compose up -d
+
+# 停止 Docker 服务
+docker-down:
+	@echo "停止 Docker 服务..."
+	@cd docker && docker-compose down
+
+# 运行数据库迁移
+migrate:
+	@echo "运行数据库迁移..."
+	@psql -h $(DB_HOST) -U $(DB_USER) -d $(DB_NAME) -f migrations/001_init_schema.sql
+	@psql -h $(DB_HOST) -U $(DB_USER) -d $(DB_NAME) -f migrations/002_seed_data.sql
+
+# 下载依赖
+deps:
+	@echo "下载 Go 依赖..."
+	@go mod download
+	@echo "下载完成"
+
+# 格式化代码
+fmt:
+	@echo "格式化代码..."
+	@go fmt ./...
+	@gofmt -w .
+
+# 代码检查
+lint:
+	@echo "代码检查..."
+	@go vet ./...

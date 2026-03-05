@@ -1,0 +1,32 @@
+# 构建阶段
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# 复制 package.json (从项目根目录的 web 文件夹)
+COPY web/package.json ./
+COPY web/package-lock.json* ./
+RUN npm ci
+
+# 复制源代码 (从项目根目录的 web 文件夹)
+COPY web/ .
+
+# 构建
+RUN npm run build
+
+# 运行阶段
+FROM node:18-alpine
+
+WORKDIR /app
+
+# 复制 package.json 和构建产物
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+CMD ["npm", "start"]

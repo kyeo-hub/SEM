@@ -1,0 +1,23 @@
+# Bin
+/bin
+/gen
+
+# Dependency directories
+/vendor/
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 测试
+/testdata/
+
+# 临时文件
+*.tmp
+*.bak

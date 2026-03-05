@@ -1,0 +1,29 @@
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 日志文件
+*.log
+
+# 环境变量
+.env
+
+# 上传文件
+eim/uploads/
+
+# 构建产物
+eim/cmd/server/main
+eim/web/.next/
+eim/web/node_modules/
+
+# Docker
+eim/docker/*.log
+
+# 临时文件
+/tmp/
