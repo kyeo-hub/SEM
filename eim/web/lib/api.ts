@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/a
 // 创建 axios 实例
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,14 +30,21 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const { data } = response;
+    // 如果响应码不为 0，抛出错误
     if (data.code !== 0) {
       return Promise.reject(new Error(data.message));
     }
     return data.data;
   },
   (error) => {
-    console.error('API 请求错误:', error);
-    return Promise.reject(error);
+    // 处理 401 错误
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    console.error('API 请求错误:', error.response?.data?.message || error.message);
+    return Promise.reject(new Error(error.response?.data?.message || error.message));
   }
 );
 
@@ -48,5 +55,8 @@ export interface LoginResponse {
     id: number;
     username: string;
     role: string;
+    real_name?: string;
+    department?: string;
   };
 }
+

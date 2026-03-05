@@ -1,115 +1,203 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button, Layout, Menu, Card, Row, Col, Statistic } from 'antd';
+import { useEffect, useState } from 'react';
+import { Card, Row, Col, Statistic, Progress, Table, Tag, Space } from 'antd';
 import {
   DashboardOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
   ToolOutlined,
-  FileTextOutlined,
-  BarChartOutlined,
-  SettingOutlined,
-  LogoutOutlined,
 } from '@ant-design/icons';
+import { api } from '@/lib/api';
+import AdminLayout from '@/components/admin/AdminLayout';
 
-const { Header, Sider, Content } = Layout;
+interface DailyStats {
+  date: string;
+  total_equipments: number;
+  working_count: number;
+  standby_count: number;
+  maintenance_count: number;
+  fault_count: number;
+  inspection_count: number;
+  abnormal_count: number;
+}
 
-export default function AdminLayout() {
-  const router = useRouter();
+interface Equipment {
+  id: number;
+  code: string;
+  name: string;
+  type: string;
+  status: string;
+  location: string;
+}
+
+export default function AdminDashboard() {
+  const [stats, setStats] = useState<DailyStats | null>(null);
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
+    loadData();
+  }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    router.push('/login');
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [statsData, equipmentData] = await Promise.all([
+        api.get('/stats/daily'),
+        api.get('/equipments?page=1&page_size=5'),
+      ]);
+      setStats(statsData as unknown as DailyStats);
+      setEquipments((equipmentData as { list: Equipment[] }).list);
+    } catch (error) {
+      console.error('加载数据失败:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const statusColors: Record<string, string> = {
+    working: 'green',
+    standby: 'blue',
+    maintenance: 'orange',
+    fault: 'red',
+  };
+
+  const statusLabels: Record<string, string> = {
+    working: '作业中',
+    standby: '待命',
+    maintenance: '维保',
+    fault: '故障',
+  };
+
+  const columns = [
+    {
+      title: '设备编号',
+      dataIndex: 'code',
+      key: 'code',
+    },
+    {
+      title: '设备名称',
+      dataIndex: 'name',
+      key: 'name',
+    },
+    {
+      title: '类型',
+      dataIndex: 'type',
+      key: 'type',
+    },
+    {
+      title: '位置',
+      dataIndex: 'location',
+      key: 'location',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => (
+        <Tag color={statusColors[status]}>
+          {statusLabels[status] || status}
+        </Tag>
+      ),
+    },
+  ];
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={200} theme="dark">
-        <div style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#001529',
-        }}>
-          <h2 style={{ color: '#fff', margin: 0, fontSize: 18 }}>EIM 设备管理</h2>
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          defaultSelectedKeys={['dashboard']}
-          items={[
-            { key: 'dashboard', icon: <DashboardOutlined />, label: '工作台' },
-            { key: 'equipment', icon: <ToolOutlined />, label: '设备管理' },
-            { key: 'inspection', icon: <FileTextOutlined />, label: '点检管理' },
-            { key: 'stats', icon: <BarChartOutlined />, label: '统计分析' },
-            { key: 'settings', icon: <SettingOutlined />, label: '系统设置' },
-          ]}
-        />
-      </Sider>
-      <Layout>
-        <Header style={{
-          background: '#fff',
-          padding: '0 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        }}>
-          <h3 style={{ margin: 0 }}>设备点检管理系统</h3>
-          <Button icon={<LogoutOutlined />} onClick={handleLogout}>
-            退出登录
-          </Button>
-        </Header>
-        <Content style={{ margin: 24 }}>
+    <AdminLayout>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 24, margin: 0 }}>工作台</h1>
+        <p style={{ color: '#666', margin: '8px 0 0' }}>欢迎使用设备点检管理系统</p>
+      </div>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Row gutter={16}>
-              <Col span={6}>
-                <Statistic
-                  title="设备总数"
-                  value={4}
-                  prefix={<ToolOutlined />}
-                />
-              </Col>
-              <Col span={6}>
-                <Statistic
-                  title="运行中"
-                  value={2}
-                  valueStyle={{ color: '#3f8600' }}
-                />
-              </Col>
-              <Col span={6}>
-                <Statistic
-                  title="待命"
-                  value={2}
-                  valueStyle={{ color: '#1890ff' }}
-                />
-              </Col>
-              <Col span={6}>
-                <Statistic
-                  title="故障"
-                  value={0}
-                  valueStyle={{ color: '#cf1322' }}
-                />
-              </Col>
-            </Row>
+            <Statistic
+              title="设备总数"
+              value={stats?.total_equipments || 0}
+              prefix={<DashboardOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
           </Card>
-          
-          <Card style={{ marginTop: 24 }}>
-            <h3>欢迎使用设备点检管理系统</h3>
-            <p style={{ color: '#666' }}>
-              请选择左侧菜单进行操作。系统支持设备管理、点检录入、统计分析等功能。
-            </p>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="作业中"
+              value={stats?.working_count || 0}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
           </Card>
-        </Content>
-      </Layout>
-    </Layout>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="待命"
+              value={stats?.standby_count || 0}
+              prefix={<ToolOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="故障"
+              value={stats?.fault_count || 0}
+              prefix={<ExclamationCircleOutlined />}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card title="今日点检">
+            <Statistic
+              value={stats?.inspection_count || 0}
+              suffix={`/ ${stats?.total_equipments || 0}`}
+            />
+            <Progress
+              percent={
+                stats?.total_equipments
+                  ? Math.round(((stats.inspection_count || 0) / stats.total_equipments) * 100)
+                  : 0
+              }
+              style={{ marginTop: 16 }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card title="异常设备">
+            <Statistic
+              value={stats?.abnormal_count || 0}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+            <Progress
+              percent={
+                stats?.inspection_count
+                  ? Math.round(((stats.abnormal_count || 0) / stats.inspection_count) * 100)
+                  : 0
+              }
+              strokeColor="#ff4d4f"
+              style={{ marginTop: 16 }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card title="设备列表" style={{ marginTop: 16 }}>
+        <Table
+          columns={columns}
+          dataSource={equipments}
+          rowKey="id"
+          loading={loading}
+          pagination={false}
+        />
+      </Card>
+    </AdminLayout>
   );
 }

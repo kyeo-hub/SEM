@@ -4,17 +4,17 @@ import { useState } from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
-import { api, type LoginResponse } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
 
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      const data = await api.post<LoginResponse>('/auth/login', values);
-      localStorage.setItem('token', (data as unknown as LoginResponse).token);
+      await login(values.username, values.password);
       message.success('登录成功');
       router.push('/admin');
     } catch (error: unknown) {
@@ -37,7 +37,7 @@ export default function LoginPage() {
           <h1 style={{ fontSize: 24, margin: 0, color: '#1890ff' }}>EIM</h1>
           <p style={{ color: '#666', margin: '8px 0 0' }}>设备点检管理系统</p>
         </div>
-        
+
         <Form onFinish={onFinish}>
           <Form.Item
             name="username"
