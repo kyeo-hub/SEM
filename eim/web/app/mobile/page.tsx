@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Card, Button, Space, Tag, Statistic } from 'antd-mobile';
 import {
-  ScanOutlined,
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
-  ToolOutlined,
+  Scan,
+  CheckCircle,
+  ExclamationCircle,
+  Tool,
 } from 'antd-mobile-icons';
 import { useRouter } from 'next/navigation';
 import MobileLayout from '@/components/mobile/MobileLayout';
@@ -53,19 +53,19 @@ export default function MobileHome() {
       title: '作业中',
       value: stats?.working_count || 0,
       color: '#52c41a',
-      icon: <CheckCircleOutlined />,
+      icon: <CheckCircle />,
     },
     {
       title: '待命',
       value: stats?.standby_count || 0,
       color: '#1890ff',
-      icon: <ToolOutlined />,
+      icon: <Tool />,
     },
     {
       title: '故障',
       value: stats?.fault_count || 0,
       color: '#ff4d4f',
-      icon: <ExclamationCircleOutlined />,
+      icon: <ExclamationCircle />,
     },
     {
       title: '总数',
@@ -87,7 +87,7 @@ export default function MobileHome() {
         bodyStyle={{ padding: 24 }}
       >
         <div style={{ textAlign: 'center' }}>
-          <ScanOutlined style={{ fontSize: 48, marginBottom: 16 }} />
+          <Scan style={{ fontSize: 48, marginBottom: 16 }} />
           <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>扫码点检</h2>
           <p style={{ margin: 0, opacity: 0.8, fontSize: 14 }}>
             扫描设备二维码进行点检
