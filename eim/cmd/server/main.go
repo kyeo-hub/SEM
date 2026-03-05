@@ -12,6 +12,7 @@ import (
 	"github.com/kyeo-hub/eim/pkg/database"
 	"github.com/kyeo-hub/eim/pkg/jwt"
 	"github.com/kyeo-hub/eim/pkg/redis"
+	"github.com/kyeo-hub/eim/pkg/wechat"
 )
 
 func main() {
@@ -56,11 +57,21 @@ func main() {
 	// 初始化 JWT 服务
 	jwtSvc := jwt.New(cfg.JWT.Secret, cfg.JWT.ExpireHours)
 
+	// 初始化企业微信机器人
+	wechatBotCfg := cfg.GetWeChatBot()
+	wechatBot := wechat.NewWeChatBot(wechatBotCfg.Webhook, wechatBotCfg.Enabled)
+	if wechatBotCfg.Enabled {
+		log.Printf("✅ 企业微信机器人已启用")
+	}
+
 	// 初始化所有 Handler
-	router.InitializeHandlers(db, jwtSvc)
+	router.InitializeHandlers(db, jwtSvc, wechatBot)
 
 	// 创建 Gin 路由
 	r := gin.Default()
+
+	// 设置静态文件服务 (上传的文件)
+	r.Static("/uploads", "./uploads")
 
 	// 设置路由
 	router.Setup(r)

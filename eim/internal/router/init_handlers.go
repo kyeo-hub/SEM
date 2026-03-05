@@ -5,11 +5,13 @@ import (
 	"github.com/kyeo-hub/eim/internal/repository"
 	"github.com/kyeo-hub/eim/internal/service"
 	"github.com/kyeo-hub/eim/pkg/jwt"
+	"github.com/kyeo-hub/eim/pkg/uploader"
+	"github.com/kyeo-hub/eim/pkg/wechat"
 	"gorm.io/gorm"
 )
 
 // InitializeHandlers 初始化所有 Handler（从 main.go 调用）
-func InitializeHandlers(db *gorm.DB, jwtSvc *jwt.Service) {
+func InitializeHandlers(db *gorm.DB, jwtSvc *jwt.Service, wechatBot *wechat.WeChatBot) {
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(db)
 	equipmentRepo := repository.NewEquipmentRepository(db)
@@ -25,6 +27,9 @@ func InitializeHandlers(db *gorm.DB, jwtSvc *jwt.Service) {
 	faultSvc := service.NewFaultLevelService(faultRepo)
 	statsSvc := service.NewStatsService(equipmentRepo, inspectionRepo)
 
+	// 初始化文件上传器
+	fileUploader := uploader.NewFileUploader("./uploads", 10) // 最大 10MB
+
 	// 初始化 Handler
 	handler.InitAuthHandler(authSvc)
 	handler.InitEquipmentHandler(equipmentSvc)
@@ -32,4 +37,6 @@ func InitializeHandlers(db *gorm.DB, jwtSvc *jwt.Service) {
 	handler.InitStandardHandler(standardSvc)
 	handler.InitFaultHandler(faultSvc)
 	handler.InitStatsHandler(statsSvc)
+	handler.InitFileHandler(fileUploader)
+	handler.InitWeChatBotHandler(wechatBot)
 }

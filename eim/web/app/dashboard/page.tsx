@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Progress, Table, Tag } from 'antd';
+import { Card, Row, Col, Statistic, Progress, Table, Tag, Modal } from 'antd';
 import {
   DashboardOutlined,
   CheckCircleOutlined,
@@ -9,6 +9,7 @@ import {
   ToolOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons';
+import dynamic from 'next/dynamic';
 
 interface DailyStats {
   date: string;
@@ -28,6 +29,8 @@ interface Equipment {
   type: string;
   status: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   current_ship?: string;
   current_cargo?: string;
 }
@@ -45,6 +48,12 @@ const statusLabels: Record<string, string> = {
   maintenance: '维保',
   fault: '故障',
 };
+
+// 动态导入地图组件 (避免 SSR 问题)
+const EquipmentMap = dynamic(() => import('@/components/dashboard/EquipmentMap'), {
+  ssr: false,
+  loading: () => <div style={{ height: '600px', background: '#f0f0f0' }}>地图加载中...</div>,
+});
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DailyStats | null>(null);
@@ -195,6 +204,23 @@ export default function DashboardPage() {
               prefix={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
               valueStyle={{ color: '#ff4d4f', fontSize: 36 }}
             />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 地图展示区域 */}
+      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+        <Col span={24}>
+          <Card
+            title={<span style={{ color: '#fff', fontSize: 18 }}>设备位置分布</span>}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 12,
+            }}
+            bodyStyle={{ padding: 0, overflow: 'hidden' }}
+          >
+            <EquipmentMap equipments={equipments} height="500px" />
           </Card>
         </Col>
       </Row>

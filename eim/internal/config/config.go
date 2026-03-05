@@ -38,8 +38,14 @@ type RedisConfig struct {
 
 // JWTConfig JWT 配置
 type JWTConfig struct {
-	Secret     string
+	Secret      string
 	ExpireHours int
+}
+
+// WeChatBotConfig 企业微信机器人配置
+type WeChatBotConfig struct {
+	Webhook string
+	Enabled bool
 }
 
 // Load 加载配置
@@ -67,6 +73,14 @@ func Load() *Config {
 			Secret:      getEnv("JWT_SECRET", "eim-secret-key-2026-change-in-production"),
 			ExpireHours: 24 * 7, // 7 天
 		},
+	}
+}
+
+// GetWeChatBot 获取企业微信机器人配置
+func (c *Config) GetWeChatBot() WeChatBotConfig {
+	return WeChatBotConfig{
+		Webhook: getEnv("WECHAT_BOT_WEBHOOK", ""),
+		Enabled: getEnv("WECHAT_BOT_ENABLED", "false") == "true",
 	}
 }
 

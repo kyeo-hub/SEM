@@ -68,6 +68,19 @@ func Setup(r *gin.Engine) {
 				stats.GET("/weekly", handler.GetWeeklyStats)
 				stats.GET("/monthly", handler.GetMonthlyStats)
 			}
+
+			// 文件上传
+			files := authRequired.Group("/files")
+			{
+				files.POST("/upload", handler.UploadFile)
+				files.POST("/upload-multiple", handler.UploadFiles)
+			}
+
+			// 企业微信机器人
+			wechat := authRequired.Group("/wechat")
+			{
+				wechat.POST("/test", handler.TestWeChatBot)
+			}
 		}
 	}
 }

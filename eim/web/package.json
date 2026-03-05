@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@amap/amap-jsapi-loader": "^1.0.1",
     "@ant-design/icons": "^6.1.0",
     "antd": "^6.3.1",
     "antd-mobile": "^5.42.3",
