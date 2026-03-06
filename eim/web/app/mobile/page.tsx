@@ -51,25 +51,25 @@ export default function MobileHome() {
   const statusCards = [
     {
       title: '作业中',
-      value: stats?.working_count || 0,
+      value: stats?.WorkingCount || 0,
       color: '#52c41a',
       icon: <CheckCircle />,
     },
     {
       title: '待命',
-      value: stats?.standby_count || 0,
+      value: stats?.StandbyCount || 0,
       color: '#1890ff',
       icon: <Tool />,
     },
     {
       title: '故障',
-      value: stats?.fault_count || 0,
+      value: stats?.FaultCount || 0,
       color: '#ff4d4f',
       icon: <ExclamationCircle />,
     },
     {
       title: '总数',
-      value: stats?.total_equipments || 0,
+      value: stats?.TotalEquipments || 0,
       color: '#722ed1',
       icon: null,
     },

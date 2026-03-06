@@ -103,6 +103,8 @@ export default function EquipmentActionPage() {
           reason: values.reason,
           ship_name: status === 'working' ? values.ship_name : null,
           cargo_name: status === 'working' ? values.cargo_name : null,
+          qr_scan: true,
+          changed_by: values.inspector_name || 'Mobile User',
         }),
       });
 

@@ -178,6 +178,7 @@ export default function InspectionNewPage() {
   // 签名相关
   const startSignature = () => {
     setShowSignature(true);
+    // 等待弹窗渲染完成后初始化 canvas
     setTimeout(() => {
       const canvas = canvasRef.current;
       if (canvas) {
@@ -186,6 +187,7 @@ export default function InspectionNewPage() {
           ctx.strokeStyle = '#000';
           ctx.lineWidth = 2;
           ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
         }
       }
     }, 100);
@@ -206,27 +208,51 @@ export default function InspectionNewPage() {
   };
 
   // Canvas 绘图
-  const handleCanvasStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+  const handleCanvasStart = (e: React.TouchEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
+    let x, y;
+    
+    if ('touches' in e) {
+      const touch = e.touches[0];
+      x = touch.clientX - rect.left;
+      y = touch.clientY - rect.top;
+      e.preventDefault();
+    } else {
+      const mouse = e;
+      x = mouse.clientX - rect.left;
+      y = mouse.clientY - rect.top;
+    }
+    
     ctx.beginPath();
-    ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    ctx.moveTo(x, y);
   };
 
-  const handleCanvasMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+  const handleCanvasMove = (e: React.TouchEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
-    ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    let x, y;
+    
+    if ('touches' in e) {
+      const touch = e.touches[0];
+      x = touch.clientX - rect.left;
+      y = touch.clientY - rect.top;
+      e.preventDefault();
+    } else {
+      const mouse = e;
+      x = mouse.clientX - rect.left;
+      y = mouse.clientY - rect.top;
+    }
+    
+    ctx.lineTo(x, y);
     ctx.stroke();
   };
 
@@ -347,17 +373,6 @@ export default function InspectionNewPage() {
             </div>
           </Card>
 
-          {/* 隐藏签名 canvas */}
-          <div style={{ display: 'none' }}>
-            <canvas
-              ref={canvasRef}
-              width={400}
-              height={200}
-              onTouchStart={handleCanvasStart}
-              onTouchMove={handleCanvasMove}
-            />
-          </div>
-
           {/* 签名弹窗 */}
           <Dialog
             content={
@@ -373,9 +388,12 @@ export default function InspectionNewPage() {
                     border: '1px solid #ddd',
                     borderRadius: 8,
                     touchAction: 'none',
+                    background: '#fff',
                   }}
                   onTouchStart={handleCanvasStart}
                   onTouchMove={handleCanvasMove}
+                  onMouseDown={handleCanvasStart}
+                  onMouseMove={handleCanvasMove}
                 />
                 <Space
                   direction="vertical"

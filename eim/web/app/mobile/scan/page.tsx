@@ -24,27 +24,40 @@ export default function MobileScanPage() {
   const startScan = async () => {
     try {
       setScanning(true);
-      
+
       // 创建扫码器
       const scanner = new Html5Qrcode('scanner-container');
       scannerRef.current = scanner;
 
-      // 开始扫码
-      await scanner.start(
-        { facingMode: 'environment' }, // 使用后置摄像头
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        onScanSuccess,
-        onScanError
-      );
+      // 获取摄像头权限并开始扫码
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length) {
+        // 使用后置摄像头
+        const backCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('environment')
+        ) || devices[0];
 
-      Toast.show({
-        content: '请对准二维码',
-        icon: 'info',
-        duration: 2000,
-      });
+        // 开始扫码
+        await scanner.start(
+          backCamera.id,
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          onScanSuccess,
+          onScanError
+        );
+
+        Toast.show({
+          content: '请对准二维码',
+          icon: 'info',
+          duration: 2000,
+        });
+      } else {
+        throw new Error('未找到摄像头');
+      }
     } catch (error) {
       console.error('启动扫码失败:', error);
       Toast.show({
