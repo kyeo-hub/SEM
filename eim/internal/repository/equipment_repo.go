@@ -44,6 +44,16 @@ func (r *EquipmentRepository) GetByCode(ctx context.Context, code string) (*mode
 	return &eq, nil
 }
 
+// GetFaultLevel 根据 ID 获取故障等级
+func (r *EquipmentRepository) GetFaultLevel(ctx context.Context, id int64) (*model.FaultLevel, error) {
+	var fl model.FaultLevel
+	err := r.db.WithContext(ctx).First(&fl, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &fl, nil
+}
+
 // List 获取设备列表
 func (r *EquipmentRepository) List(ctx context.Context, offset, limit int, filters map[string]interface{}) ([]*model.Equipment, int64, error) {
 	var equipments []*model.Equipment
@@ -82,6 +92,16 @@ func (r *EquipmentRepository) Update(ctx context.Context, eq *model.Equipment) e
 // Delete 删除设备（软删除）
 func (r *EquipmentRepository) Delete(ctx context.Context, id int64) error {
 	return r.db.WithContext(ctx).Delete(&model.Equipment{}, id).Error
+}
+
+// DeleteStatusHistory 删除设备状态历史
+func (r *EquipmentRepository) DeleteStatusHistory(ctx context.Context, id int64) error {
+	return r.db.WithContext(ctx).Where("equipment_id = ?", id).Delete(&model.EquipmentStatusHistory{}).Error
+}
+
+// DeleteInspectionRecords 删除设备点检记录
+func (r *EquipmentRepository) DeleteInspectionRecords(ctx context.Context, id int64) error {
+	return r.db.WithContext(ctx).Where("equipment_id = ?", id).Delete(&model.InspectionRecord{}).Error
 }
 
 // UpdateStatus 更新设备状态

@@ -9,15 +9,15 @@ import (
 	"github.com/kyeo-hub/eim/internal/service"
 )
 
-// inspectionHandler 点检 Handler
+// inspectionHandler 检查 Handler
 var inspectionHandler *service.InspectionService
 
-// InitInspectionHandler 初始化点检 Handler
+// InitInspectionHandler 初始化检查 Handler
 func InitInspectionHandler(svc *service.InspectionService) {
 	inspectionHandler = svc
 }
 
-// GetInspections 获取点检记录列表
+// GetInspections 获取检查记录列表
 // GET /api/inspections
 func GetInspections(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -50,7 +50,7 @@ func GetInspections(c *gin.Context) {
 	})
 }
 
-// CreateInspection 提交点检记录
+// CreateInspection 提交检查记录
 // POST /api/inspections
 func CreateInspection(c *gin.Context) {
 	var req service.CreateInspectionRequest
@@ -69,7 +69,7 @@ func CreateInspection(c *gin.Context) {
 	Success(c, record)
 }
 
-// GetTodayInspections 获取今日点检情况
+// GetTodayInspections 获取今日检查情况
 // GET /api/inspections/today
 func GetTodayInspections(c *gin.Context) {
 	records, err := inspectionHandler.GetTodayInspections(context.Background())

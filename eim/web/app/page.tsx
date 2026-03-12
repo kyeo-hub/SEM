@@ -26,7 +26,7 @@ export default function Home() {
     }}>
       <div style={{ textAlign: 'center', color: '#fff' }}>
         <h1 style={{ fontSize: 48, margin: 0 }}>EIM</h1>
-        <p style={{ fontSize: 20, margin: '16px 0' }}>设备点检管理系统</p>
+        <p style={{ fontSize: 20, margin: '16px 0' }}>设备管理系统</p>
         <p style={{ color: '#ccc' }}>加载中...</p>
       </div>
     </div>

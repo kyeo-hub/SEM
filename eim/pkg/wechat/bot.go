@@ -123,11 +123,11 @@ func (w *WeChatBot) SendFaultResolved(equipmentName, faultLevel, repairContent s
 	return w.SendMarkdown(content)
 }
 
-// SendInspectionAbnormal 发送点检异常通知
+// SendInspectionAbnormal 发送检查异常通知
 func (w *WeChatBot) SendInspectionAbnormal(equipmentName, inspector, problems string, abnormalCount int) error {
-	content := "## ⚠️ 点检异常通知\n\n"
+	content := "## ⚠️ 检查异常通知\n\n"
 	content += fmt.Sprintf("**设备名称**: %s\n\n", equipmentName)
-	content += fmt.Sprintf("**点检人**: %s\n\n", inspector)
+	content += fmt.Sprintf("**检查人**: %s\n\n", inspector)
 	content += fmt.Sprintf("**异常项数**: %d 项\n\n", abnormalCount)
 	content += fmt.Sprintf("**问题描述**:\n%s\n\n", problems)
 	content += fmt.Sprintf("---\n")

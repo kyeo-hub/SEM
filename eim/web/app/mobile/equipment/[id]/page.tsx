@@ -11,15 +11,26 @@ import {
   Form,
   Input,
   Selector,
+  DatePicker,
 } from 'antd-mobile';
 import {
   CheckCircleOutline,
   CloseCircleOutline,
-  SettingOutline,
-  FileTextOutline,
+  AppOutline,
+  FileOutline,
+  UserOutline,
+  UnorderedListOutline,
 } from 'antd-mobile-icons';
 import { useParams, useRouter } from 'next/navigation';
 import MobileLayout from '@/components/mobile/MobileLayout';
+import { useRolePermission } from '@/lib/useRolePermission';
+
+// 声明全局 window 对象类型
+declare global {
+  interface Window {
+    _currentMaintenanceIdForConfirm?: number | null;
+  }
+}
 
 interface Equipment {
   id: number;
@@ -31,11 +42,20 @@ interface Equipment {
   status: string;
   current_ship?: string;
   current_cargo?: string;
+  fault_level_id?: number;
+  fault_level?: {
+    id: number;
+    level_code: string;
+    level_name: string;
+    allow_work: boolean;
+    color: string;
+  };
+  current_operation_id?: number;  // 当前作业记录 ID
 }
 
 const statusOptions = [
-  { label: '作业', value: 'working', color: '#52c41a' },
   { label: '待命', value: 'standby', color: '#1890ff' },
+  { label: '作业中', value: 'working', color: '#52c41a' },
   { label: '维保', value: 'maintenance', color: '#faad14' },
   { label: '故障', value: 'fault', color: '#ff4d4f' },
 ];
@@ -46,14 +66,34 @@ const faultLevelOptions = [
   { label: 'L3 轻微故障', value: '3', color: '#ffd666' },
 ];
 
+const maintenanceTypeOptions = [
+  { label: '日常保养', value: 'daily' },
+  { label: '故障维修', value: 'repair' },
+  { label: '定期检修', value: 'periodic' },
+  { label: '紧急抢修', value: 'emergency' },
+];
+
 export default function EquipmentActionPage() {
   const params = useParams();
   const router = useRouter();
   const qrCodeUuid = params.id as string;
   const [equipment, setEquipment] = useState<Equipment | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statusModalVisible, setStatusModalVisible] = useState(false);
-  const [operationForm] = Form.useForm();
+  
+  // 角色权限
+  const { canWork, canMaintenance } = useRolePermission();
+  
+  // 弹窗状态
+  const [workModalVisible, setWorkModalVisible] = useState(false);
+  const [standbyModalVisible, setStandbyModalVisible] = useState(false);
+  const [maintenanceModalVisible, setMaintenanceModalVisible] = useState(false);
+  const [faultModalVisible, setFaultModalVisible] = useState(false);
+  
+  // 表单
+  const [workForm] = Form.useForm();
+  const [standbyForm] = Form.useForm();
+  const [maintenanceForm] = Form.useForm();
+  const [faultForm] = Form.useForm();
 
   useEffect(() => {
     loadEquipment();
@@ -62,20 +102,28 @@ export default function EquipmentActionPage() {
   const loadEquipment = async () => {
     try {
       const token = localStorage.getItem('token');
-      // 先通过 UUID 查询设备
-      const res = await fetch(`/api/equipments?qr_code_uuid=${qrCodeUuid}`, {
+      // 先尝试按 code 查询（手动输入设备编号的情况）
+      let res = await fetch(`/api/equipments?code=${qrCodeUuid}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
+      let data = await res.json();
+
+      // 如果按 code 查询为空，再尝试按 qr_code_uuid 查询
+      if (data.code !== 0 || !data.data.list || data.data.list.length === 0) {
+        res = await fetch(`/api/equipments?qr_code_uuid=${qrCodeUuid}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        data = await res.json();
+      }
+
       if (data.code === 0 && data.data.list?.length > 0) {
         setEquipment(data.data.list[0]);
       } else {
-        Toast.show({
-          content: '设备不存在',
-          icon: 'fail',
-        });
+        Toast.show({ content: '设备不存在', icon: 'fail' });
       }
     } catch (error) {
       console.error('加载设备失败:', error);
@@ -85,12 +133,11 @@ export default function EquipmentActionPage() {
     }
   };
 
-  const handleStatusChange = async (values: any) => {
+  // 开始作业
+  const handleStartWork = async (values: any) => {
+    console.log('开始作业提交:', values);
     try {
       const token = localStorage.getItem('token');
-      const status = values.status;
-      const faultLevelId = status === 'fault' ? values.fault_level : null;
-
       const res = await fetch(`/api/equipments/${equipment?.id}/status`, {
         method: 'PUT',
         headers: {
@@ -98,27 +145,247 @@ export default function EquipmentActionPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          status,
-          fault_level_id: faultLevelId ? parseInt(faultLevelId) : null,
-          reason: values.reason,
-          ship_name: status === 'working' ? values.ship_name : null,
-          cargo_name: status === 'working' ? values.cargo_name : null,
+          status: 'working',
+          ship_name: values.ship_name,
+          cargo_name: values.cargo_name,
+          reason: `开始作业：${values.ship_name} - ${values.cargo_name}`,
           qr_scan: true,
-          changed_by: values.inspector_name || 'Mobile User',
+          changed_by: values.operator || 'Mobile User',
         }),
       });
 
       const data = await res.json();
+      console.log('开始作业响应:', data);
+      
       if (data.code === 0) {
-        Toast.show({ content: '状态更新成功', icon: 'success' });
-        setStatusModalVisible(false);
-        loadEquipment();
+        Toast.show({ content: '开始作业成功', icon: 'success', duration: 2000 });
+        // 先关闭弹窗
+        setWorkModalVisible(false);
+        // 重置表单
+        setTimeout(() => {
+          workForm.resetFields();
+          // 重新加载设备信息
+          loadEquipment();
+        }, 300);
       } else {
-        Toast.show({ content: data.message || '更新失败', icon: 'fail' });
+        Toast.show({ content: data.message || '操作失败', icon: 'fail' });
       }
     } catch (error) {
-      console.error('更新状态失败:', error);
-      Toast.show({ content: '更新失败', icon: 'fail' });
+      console.error('开始作业失败:', error);
+      Toast.show({ content: '操作失败', icon: 'fail' });
+    }
+  };
+
+  // 结束作业（设为待命）
+  const handleEndWork = async (values: any) => {
+    console.log('结束作业提交:', values);
+    try {
+      const token = localStorage.getItem('token');
+
+      // 首先获取当前作业记录
+      const todayRes = await fetch(`/api/operations/today?equipment_id=${equipment?.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const todayData = await todayRes.json();
+
+      if (todayData.code !== 0 || !todayData.data || todayData.data.length === 0) {
+        Toast.show({ content: '未找到当前作业记录', icon: 'fail' });
+        return;
+      }
+
+      const operationId = todayData.data[0].id;
+
+      // 调用结束作业 API
+      const res = await fetch(`/api/operations/end`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          operation_id: operationId,
+          cargo_weight: values.cargo_weight ? parseFloat(values.cargo_weight) : null,
+          has_fault: values.has_fault || false,
+          fault_level_id: values.has_fault && values.fault_level_id ? parseInt(values.fault_level_id) : null,
+          fault_description: values.fault_description || '',
+          operator_name: values.operator,
+          reason: values.reason || '作业完成',
+          qr_scan: true,
+          changed_by: values.operator || 'Mobile User',
+        }),
+      });
+
+      const data = await res.json();
+      console.log('结束作业响应:', data);
+
+      if (data.code === 0) {
+        Toast.show({ content: '结束作业成功', icon: 'success', duration: 2000 });
+        setStandbyModalVisible(false);
+        setTimeout(() => {
+          standbyForm.resetFields();
+          loadEquipment();
+        }, 300);
+      } else {
+        Toast.show({ content: data.message || '操作失败', icon: 'fail' });
+      }
+    } catch (error) {
+      console.error('结束作业失败:', error);
+      Toast.show({ content: '操作失败', icon: 'fail' });
+    }
+  };
+
+  // 维保登记
+  const handleMaintenance = async (values: any) => {
+    console.log('维保登记提交:', values);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // 调用维保登记 API（创建维保记录）
+      const res = await fetch(`/api/maintenance/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          equipment_id: equipment?.id,
+          maintenance_type: values.maintenance_type,
+          plan_content: values.content,
+          maintainer_name: values.operator || 'Mobile User',
+          maintainer_id: null,
+          qr_scan: true,
+          changed_by: values.operator || 'Mobile User',
+        }),
+      });
+
+      const data = await res.json();
+      console.log('维保登记响应:', data);
+      
+      if (data.code === 0) {
+        Toast.show({ content: '维保登记成功', icon: 'success' });
+        setMaintenanceModalVisible(false);
+        maintenanceForm.resetFields();
+        loadEquipment();
+      } else {
+        Toast.show({ content: data.message || '操作失败', icon: 'fail' });
+      }
+    } catch (error) {
+      console.error('维保登记失败:', error);
+      Toast.show({ content: '操作失败', icon: 'fail' });
+    }
+  };
+
+  // 维保完成（设为待命）
+  const handleCompleteMaintenance = async (values: any) => {
+    console.log('维保完成提交:', values);
+    
+    // 优先使用 window 对象上存储的 ID（避免异步状态更新问题）
+    const maintenanceId = window._currentMaintenanceIdForConfirm || currentMaintenanceId;
+    console.log('使用维保记录 ID:', maintenanceId);
+    
+    // 检查 maintenance_id 是否存在
+    if (!maintenanceId) {
+      Toast.show({ content: '未找到当前维保记录，请重试', icon: 'fail' });
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+
+      // 构建故障信息
+      let faultInfo = '';
+      if (values.has_fault && values.fault_level_id) {
+        const faultLevel = faultLevelOptions.find((o) => o.value === values.fault_level_id);
+        faultInfo = ` [${faultLevel?.label || '故障'}] ${values.fault_description || ''}`;
+      } else {
+        faultInfo = ' 无故障';
+      }
+
+      // 调用维保完成 API
+      const res = await fetch(`/api/maintenance/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          maintenance_id: maintenanceId,
+          result: values.has_fault && values.fault_level_id ? 'partially_resolved' : 'resolved',
+          fault_level_id: values.has_fault && values.fault_level_id ? parseInt(values.fault_level_id) : null,
+          actual_content: values.reason || '维保完成',
+          next_plan: '',
+          maintainer_signature: '',
+          acceptor_name: values.operator,
+          acceptor_signature: '',
+          photos_before: [],
+          photos_after: [],
+          qr_scan: true,
+          changed_by: values.operator || 'Mobile User',
+        }),
+      });
+
+      const data = await res.json();
+      console.log('维保完成响应:', data);
+
+      if (data.code === 0) {
+        Toast.show({
+          content: values.has_fault && values.fault_level_id ? `维保完成，${faultInfo}` : '维保完成',
+          icon: 'success',
+          duration: 2000
+        });
+        setStandbyModalVisible(false);
+        // 清除存储的 ID
+        window._currentMaintenanceIdForConfirm = null;
+        setTimeout(() => {
+          standbyForm.resetFields();
+          loadEquipment();
+        }, 300);
+      } else {
+        Toast.show({ content: data.message || '操作失败', icon: 'fail' });
+      }
+    } catch (error) {
+      console.error('维保完成失败:', error);
+      Toast.show({ content: '操作失败', icon: 'fail' });
+    }
+  };
+
+  // 设为待命（非维保状态）
+  const handleSetStandby = async (values: any) => {
+    console.log('设为待命提交:', values);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/equipments/${equipment?.id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: 'standby',
+          reason: values.reason || '设为待命',
+          qr_scan: true,
+          changed_by: values.operator || 'Mobile User',
+        }),
+      });
+
+      const data = await res.json();
+      console.log('设为待命响应:', data);
+
+      if (data.code === 0) {
+        Toast.show({ content: '设为待命成功', icon: 'success', duration: 2000 });
+        setStandbyModalVisible(false);
+        setTimeout(() => {
+          standbyForm.resetFields();
+          loadEquipment();
+        }, 300);
+      } else {
+        Toast.show({ content: data.message || '操作失败', icon: 'fail' });
+      }
+    } catch (error) {
+      console.error('设为待命失败:', error);
+      Toast.show({ content: '操作失败', icon: 'fail' });
     }
   };
 
@@ -130,6 +397,53 @@ export default function EquipmentActionPage() {
   const getStatusLabel = (status: string) => {
     const option = statusOptions.find((o) => o.value === status);
     return option?.label || status;
+  };
+
+  // 维保状态禁止作业
+  const [currentMaintenanceId, setCurrentMaintenanceId] = useState<number | null>(null);
+
+  // 检查是否允许开始作业
+  const checkAllowWork = () => {
+    // 维保状态禁止作业
+    if (equipment.status === 'maintenance') {
+      Toast.show({
+        content: '设备正在维保中，禁止作业',
+        icon: 'fail',
+      });
+      return;
+    }
+
+    // 故障状态检查故障等级
+    if (equipment.status === 'fault' && equipment.fault_level) {
+      if (!equipment.fault_level.allow_work) {
+        // L1 故障，禁止作业
+        Toast.show({
+          content: `设备${equipment.fault_level.level_name}，禁止作业！`,
+          icon: 'fail',
+          duration: 3000,
+        });
+        return;
+      } else {
+        // L2/L3 故障，允许作业但提示
+        Dialog.confirm({
+          content: `设备当前为${equipment.fault_level.level_name}，允许带病作业，但需注意安全！是否继续？`,
+          onConfirm: () => setWorkModalVisible(true),
+        });
+        return;
+      }
+    }
+
+    // 故障状态但没有故障等级信息（数据异常）
+    if (equipment.status === 'fault') {
+      Toast.show({
+        content: '设备故障状态异常，请先检查设备',
+        icon: 'fail',
+      });
+      return;
+    }
+
+    // 待命状态，允许作业
+    setWorkModalVisible(true);
   };
 
   if (loading) {
@@ -162,9 +476,16 @@ export default function EquipmentActionPage() {
               <span style={{ fontSize: 18, fontWeight: 'bold' }}>
                 {equipment.name}
               </span>
-              <Tag color={getStatusColor(equipment.status)}>
-                {getStatusLabel(equipment.status)}
-              </Tag>
+              <Space>
+                {equipment.fault_level && equipment.status !== 'working' && (
+                  <Tag color={equipment.fault_level.color}>
+                    {equipment.fault_level.level_name}
+                  </Tag>
+                )}
+                <Tag color={getStatusColor(equipment.status)}>
+                  {getStatusLabel(equipment.status)}
+                </Tag>
+              </Space>
             </Space>
           }
         >
@@ -200,14 +521,106 @@ export default function EquipmentActionPage() {
           </Space>
         </Card>
 
-        {/* 操作按钮 */}
-        <Card title="快速操作">
+        {/* 四大功能按钮 */}
+        <Card title="操作功能">
           <Space direction="vertical" style={{ width: '100%' }}>
+            {/* 作业功能 - 仅管理员和操作司机可见 */}
+            {canWork && (
+              <Button
+                color="success"
+                size="large"
+                block
+                icon={<CheckCircleOutline />}
+                onClick={() => {
+                  if (equipment.status === 'working') {
+                    // 当前是作业状态，提示是否结束作业
+                    Dialog.confirm({
+                      content: '当前设备正在作业中，是否结束作业？',
+                      onConfirm: () => setStandbyModalVisible(true),
+                    });
+                  } else {
+                    // 非作业状态，检查是否允许开始作业
+                    checkAllowWork();
+                  }
+                }}
+                disabled={equipment.status === 'maintenance'}
+              >
+                {equipment.status === 'working' ? '结束作业' : '开始作业'}
+              </Button>
+            )}
+
+            {/* 待命功能 - 所有角色都可见 */}
             <Button
               color="primary"
               size="large"
               block
-              icon={<FileTextOutline />}
+              icon={<UserOutline />}
+              disabled={equipment.status === 'standby'}
+              onClick={() => {
+                if (equipment.status === 'maintenance') {
+                  // 维保状态，先获取当前维保记录，然后提示维保完成
+                  const token = localStorage.getItem('token');
+                  Toast.show({ 
+                    content: '正在加载维保记录...', 
+                    icon: 'loading',
+                    duration: 3000
+                  });
+                  
+                  fetch(`/api/maintenance/today?equipment_id=${equipment.id}`, {
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                    },
+                  })
+                    .then((res) => res.json())
+                    .then((data) => {
+                      console.log('获取维保记录响应:', data);
+                      if (data.code === 0 && data.data && data.data.length > 0) {
+                        const maintenanceId = data.data[0].id;
+                        console.log('获取到维保记录 ID:', maintenanceId);
+                        // 直接传入 ID，不依赖状态更新
+                        window._currentMaintenanceIdForConfirm = maintenanceId;
+                        Dialog.confirm({
+                          content: '当前设备正在维保中，是否完成维保并设为待命？',
+                          onConfirm: () => {
+                            console.log('确认维保完成，使用 ID:', window._currentMaintenanceIdForConfirm);
+                            setStandbyModalVisible(true);
+                          },
+                        });
+                      } else {
+                        Dialog.confirm({
+                          content: '未找到当前维保记录，是否继续？',
+                          onConfirm: () => setStandbyModalVisible(true),
+                        });
+                      }
+                    })
+                    .catch((err) => {
+                      console.error('获取维保记录失败:', err);
+                      Dialog.confirm({
+                        content: '获取维保记录失败，是否继续？',
+                        onConfirm: () => setStandbyModalVisible(true),
+                      });
+                    });
+                } else if (equipment.status === 'working') {
+                  // 作业状态，提示结束作业
+                  Dialog.confirm({
+                    content: '当前设备正在作业中，是否结束作业并设为待命？',
+                    onConfirm: () => setStandbyModalVisible(true),
+                  });
+                } else {
+                  // 其他状态（故障或待命），直接设为待命
+                  setStandbyModalVisible(true);
+                }
+              }}
+            >
+              {equipment.status === 'standby' ? '待命中' : equipment.status === 'maintenance' ? '维保完成' : equipment.status === 'working' ? '结束作业' : '设为待命'}
+            </Button>
+
+            {/* 点检功能 - 所有角色都可见 */}
+            <Button
+              color="warning"
+              size="large"
+              block
+              icon={<FileOutline />}
               onClick={() =>
                 router.push(`/mobile/inspection/new?equipmentId=${equipment.id}`)
               }
@@ -215,98 +628,331 @@ export default function EquipmentActionPage() {
               点检录入
             </Button>
 
-            <Button
-              color="success"
-              size="large"
-              block
-              icon={<CheckCircleOutline />}
-              onClick={() => setStatusModalVisible(true)}
-            >
-              变更状态
-            </Button>
-
-            <Button
-              color="warning"
-              size="large"
-              block
-              icon={<SettingOutline />}
-              onClick={() =>
-                router.push(`/mobile/equipment/${equipment.id}/edit`)
-              }
-            >
-              设备信息
-            </Button>
+            {/* 维保功能 - 仅管理员和维保员可见 */}
+            {canMaintenance && (
+              <Button
+                color="danger"
+                size="large"
+                block
+                icon={<UnorderedListOutline />}
+                disabled={equipment.status === 'maintenance'}
+                onClick={() => setMaintenanceModalVisible(true)}
+              >
+                {equipment.status === 'maintenance' ? '维保中' : '维保登记'}
+              </Button>
+            )}
           </Space>
         </Card>
 
-        {/* 状态变更弹窗 */}
+        {/* 开始作业弹窗 */}
         <Dialog
           content={
             <Form
-              form={operationForm}
-              onFinish={handleStatusChange}
+              form={workForm}
               layout="vertical"
-              footer={
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Button block color="primary" htmlType="submit">
-                    确认
-                  </Button>
-                  <Button
-                    block
-                    onClick={() => setStatusModalVisible(false)}
-                  >
-                    取消
-                  </Button>
-                </Space>
-              }
             >
-              <Form.Item
-                name="status"
-                label="设备状态"
-                rules={[{ required: true }]}
-              >
-                <Selector
-                  options={statusOptions}
-                  columns={2}
-                />
-              </Form.Item>
-
               <Form.Item
                 name="ship_name"
                 label="船名"
-                extra="状态为作业时填写"
+                rules={[{ required: true }]}
               >
                 <Input placeholder="请输入船名" />
               </Form.Item>
-
               <Form.Item
                 name="cargo_name"
                 label="货品名称"
-                extra="状态为作业时填写"
+                rules={[{ required: true }]}
               >
                 <Input placeholder="请输入货品名称" />
               </Form.Item>
-
-              <Form.Item
-                name="fault_level"
-                label="故障等级"
-                extra="状态为故障时选择"
-              >
-                <Selector options={faultLevelOptions} columns={1} />
+              <Form.Item name="operator" label="操作人">
+                <Input placeholder="请输入操作人姓名" />
               </Form.Item>
+            </Form>
+          }
+          visible={workModalVisible}
+          onMaskClick={() => setWorkModalVisible(false)}
+          actions={[
+            {
+              key: 'submit',
+              text: '确认开始作业',
+              color: 'success',
+              onClick: async () => {
+                try {
+                  const values = await workForm.validateFields();
+                  console.log('表单验证通过:', values);
+                  await handleStartWork(values);
+                } catch (error) {
+                  console.error('表单验证失败:', error);
+                  Toast.show({ content: '请填写必填项', icon: 'fail' });
+                }
+              },
+            },
+            {
+              key: 'cancel',
+              text: '取消',
+              onClick: () => setWorkModalVisible(false),
+            },
+          ]}
+        />
 
-              <Form.Item name="reason" label="变更原因">
+        {/* 结束作业/维保完成/设为待命 弹窗 */}
+        <Dialog
+          title={
+            equipment.status === 'maintenance' ? '维保完成' :
+            equipment.status === 'working' ? '结束作业' :
+            '设为待命'
+          }
+          content={
+            <Form
+              form={standbyForm}
+              layout="vertical"
+            >
+              {/* 作业状态时显示吨位字段 */}
+              {equipment.status === 'working' && (
+                <Form.Item
+                  name="cargo_weight"
+                  label="装卸吨位"
+                  extra="可选，货场/仓库设备可不填"
+                >
+                  <Input
+                    type="number"
+                    placeholder="请输入装卸吨位（吨）"
+                  />
+                </Form.Item>
+              )}
+
+              <Form.Item name="reason" label="原因说明">
                 <Input
-                  placeholder="请输入变更原因"
+                  placeholder="请输入原因（可选）"
                   maxLength={200}
                   rows={2}
                 />
               </Form.Item>
+
+              {/* 作业状态或维保状态时显示故障选项 */}
+              {(equipment.status === 'working' || equipment.status === 'maintenance') && (
+                <>
+                  <Form.Item
+                    name="has_fault"
+                    label="是否有故障"
+                    initialValue={false}
+                  >
+                    <Selector
+                      options={[
+                        { label: '无故障', value: false },
+                        { label: '有故障', value: true },
+                      ]}
+                      columns={2}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="fault_level_id"
+                    label="故障等级"
+                    extra="有故障时必填"
+                    rules={[
+                      {
+                        required: standbyForm.getFieldValue('has_fault') === true,
+                        message: '有故障时请选择故障等级',
+                      },
+                    ]}
+                  >
+                    <Selector options={faultLevelOptions} columns={1} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="fault_description"
+                    label="故障描述"
+                    extra="有故障时必填"
+                    rules={[
+                      {
+                        required: standbyForm.getFieldValue('has_fault') === true,
+                        message: '有故障时请填写故障描述',
+                      },
+                    ]}
+                  >
+                    <Input
+                      placeholder="请描述故障情况"
+                      maxLength={500}
+                      rows={3}
+                    />
+                  </Form.Item>
+                </>
+              )}
+
+              <Form.Item name="operator" label="操作人" rules={[{ required: true }]}>
+                <Input placeholder="请输入操作人姓名" />
+              </Form.Item>
             </Form>
           }
-          visible={statusModalVisible}
-          onMaskClick={() => setStatusModalVisible(false)}
-          style={{ '--content-max-width': '90%' }}
+          visible={standbyModalVisible}
+          onMaskClick={() => setStandbyModalVisible(false)}
+          actions={[
+            {
+              key: 'submit',
+              text: '确认',
+              color: 'primary',
+              onClick: async () => {
+                try {
+                  const values = await standbyForm.validateFields();
+                  console.log('表单验证通过:', values, '设备状态:', equipment.status);
+
+                  // Selector 返回的是数组，需要转换为单个值
+                  const hasFault = Array.isArray(values.has_fault) ? values.has_fault[0] : values.has_fault;
+                  const faultLevelId = Array.isArray(values.fault_level_id) ? values.fault_level_id[0] : values.fault_level_id;
+
+                  // 手动检查故障信息
+                  if (hasFault) {
+                    if (!faultLevelId) {
+                      Toast.show({ content: '请选择故障等级', icon: 'fail' });
+                      return;
+                    }
+                    if (!values.fault_description) {
+                      Toast.show({ content: '请填写故障描述', icon: 'fail' });
+                      return;
+                    }
+                  }
+
+                  // 根据设备状态调用不同的 API
+                  if (equipment.status === 'maintenance') {
+                    await handleCompleteMaintenance({ ...values, has_fault: hasFault, fault_level_id: faultLevelId });
+                  } else if (equipment.status === 'working') {
+                    await handleEndWork({ ...values, has_fault: hasFault, fault_level_id: faultLevelId });
+                  } else {
+                    await handleSetStandby(values);
+                  }
+                } catch (error) {
+                  console.error('表单验证失败:', error);
+                  // 不显示通用错误提示，表单验证会显示具体错误
+                }
+              },
+            },
+            {
+              key: 'cancel',
+              text: '取消',
+              onClick: () => setStandbyModalVisible(false),
+            },
+          ]}
+        />
+
+        {/* 维保登记弹窗 */}
+        <Dialog
+          content={
+            <Form
+              form={maintenanceForm}
+              layout="vertical"
+            >
+              <Form.Item
+                name="maintenance_type"
+                label="维保类型"
+                rules={[{ required: true }]}
+              >
+                <Selector options={maintenanceTypeOptions} columns={2} />
+              </Form.Item>
+              <Form.Item
+                name="fault_level"
+                label="故障等级"
+                extra="故障维修时选择"
+              >
+                <Selector options={faultLevelOptions} columns={1} />
+              </Form.Item>
+              <Form.Item
+                name="content"
+                label="维保内容"
+                rules={[{ required: true }]}
+              >
+                <Input
+                  placeholder="请输入维保内容"
+                  maxLength={500}
+                  rows={3}
+                />
+              </Form.Item>
+              <Form.Item name="operator" label="操作人">
+                <Input placeholder="请输入操作人姓名" />
+              </Form.Item>
+            </Form>
+          }
+          visible={maintenanceModalVisible}
+          onMaskClick={() => setMaintenanceModalVisible(false)}
+          actions={[
+            {
+              key: 'submit',
+              text: '确认登记',
+              color: 'danger',
+              onClick: async () => {
+                try {
+                  const values = await maintenanceForm.validateFields();
+                  console.log('维保登记表单验证通过:', values);
+                  await handleMaintenance(values);
+                } catch (error) {
+                  console.error('维保登记表单验证失败:', error);
+                  Toast.show({ content: '请填写必填项', icon: 'fail' });
+                }
+              },
+            },
+            {
+              key: 'cancel',
+              text: '取消',
+              onClick: () => setMaintenanceModalVisible(false),
+            },
+          ]}
+        />
+
+        {/* 故障登记弹窗 */}
+        <Dialog
+          content={
+            <Form
+              form={faultForm}
+              layout="vertical"
+            >
+              <Form.Item
+                name="fault_level"
+                label="故障等级"
+                rules={[{ required: true }]}
+              >
+                <Selector options={faultLevelOptions} columns={1} />
+              </Form.Item>
+              <Form.Item
+                name="description"
+                label="故障描述"
+                rules={[{ required: true }]}
+              >
+                <Input
+                  placeholder="请描述故障情况"
+                  maxLength={500}
+                  rows={3}
+                />
+              </Form.Item>
+              <Form.Item name="operator" label="操作人">
+                <Input placeholder="请输入操作人姓名" />
+              </Form.Item>
+            </Form>
+          }
+          visible={faultModalVisible}
+          onMaskClick={() => setFaultModalVisible(false)}
+          actions={[
+            {
+              key: 'submit',
+              text: '确认登记',
+              color: 'danger',
+              onClick: async () => {
+                try {
+                  const values = await faultForm.validateFields();
+                  console.log('故障登记表单验证通过:', values);
+                  await handleFault(values);
+                } catch (error) {
+                  console.error('故障登记表单验证失败:', error);
+                  Toast.show({ content: '请填写必填项', icon: 'fail' });
+                }
+              },
+            },
+            {
+              key: 'cancel',
+              text: '取消',
+              onClick: () => setFaultModalVisible(false),
+            },
+          ]}
         />
       </div>
     </MobileLayout>

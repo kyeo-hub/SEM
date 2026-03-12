@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, Button, Space, Tag } from 'antd-mobile';
+import { Card, Space, TabBar,Button } from 'antd-mobile';
 import {
-  Scan,
-  CheckCircle,
-  ExclamationCircle,
-  Tool,
+  CheckCircleOutline,
+  ExclamationOutline,
+  AppOutline,
+  ScanningOutline,
+  UserOutline,
+  FileOutline
 } from 'antd-mobile-icons';
 import { useRouter } from 'next/navigation';
 import MobileLayout from '@/components/mobile/MobileLayout';
@@ -51,32 +53,32 @@ export default function MobileHome() {
   const statusCards = [
     {
       title: '作业中',
-      value: stats?.WorkingCount || 0,
+      value: stats?.working_count || 0,
       color: '#52c41a',
-      icon: <CheckCircle />,
+      icon: <CheckCircleOutline />,
     },
     {
       title: '待命',
-      value: stats?.StandbyCount || 0,
+      value: stats?.standby_count || 0,
       color: '#1890ff',
-      icon: <Tool />,
+      icon: <AppOutline />,
     },
     {
       title: '故障',
-      value: stats?.FaultCount || 0,
+      value: stats?.fault_count || 0,
       color: '#ff4d4f',
-      icon: <ExclamationCircle />,
+      icon: <ExclamationOutline />,
     },
     {
       title: '总数',
-      value: stats?.TotalEquipments || 0,
+      value: stats?.total_equipments || 0,
       color: '#722ed1',
       icon: null,
     },
   ];
 
   return (
-    <MobileLayout title="设备点检">
+    <MobileLayout title="设备管理">
       {/* 扫码卡片 */}
       <Card
         style={{
@@ -84,10 +86,10 @@ export default function MobileHome() {
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: '#fff',
         }}
-        bodyStyle={{ padding: 24 }}
+        styles={{ body: { padding: 24 } }}
       >
         <div style={{ textAlign: 'center' }}>
-          <Scan style={{ fontSize: 48, marginBottom: 16 }} />
+          <ScanningOutline style={{ fontSize: 48, marginBottom: 16 }} />
           <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>扫码点检</h2>
           <p style={{ margin: 0, opacity: 0.8, fontSize: 14 }}>
             扫描设备二维码进行点检
@@ -117,7 +119,7 @@ export default function MobileHome() {
           {statusCards.map((card, index) => (
             <Card
               key={index}
-              bodyStyle={{ padding: 16, textAlign: 'center' }}
+              styles={{ body: { padding: 16, textAlign: 'center' } }}
             >
               <div style={{ color: card.color, fontSize: 24, marginBottom: 8 }}>
                 {card.icon}
@@ -134,13 +136,13 @@ export default function MobileHome() {
       </div>
 
       {/* 快捷操作 */}
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: 16, paddingBottom: 80 }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#333' }}>
           快捷操作
         </h3>
         <Space direction="vertical" style={{ width: '100%' }}>
           <Card
-            bodyStyle={{ padding: 16 }}
+            styles={{ body: { padding: 16 } }}
             onClick={() => router.push('/mobile/equipment')}
           >
             <Space justify="between">
@@ -149,7 +151,7 @@ export default function MobileHome() {
             </Space>
           </Card>
           <Card
-            bodyStyle={{ padding: 16 }}
+            styles={{ body: { padding: 16 } }}
             onClick={() => router.push('/mobile/inspection')}
           >
             <Space justify="between">
@@ -158,6 +160,33 @@ export default function MobileHome() {
             </Space>
           </Card>
         </Space>
+      </div>
+
+      {/* 底部导航栏 */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: '#fff',
+        borderTop: '1px solid #eee',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}>
+        <TabBar activeKey="home" onChange={(key) => {
+          if (key === 'profile') {
+            router.push('/mobile/profile');
+          }
+        }}>
+          <TabBar.Tab key="home" title="首页" icon={<ScanningOutline />}>
+            首页
+          </TabBar.Tab>
+          <TabBar.Tab key="inspection" title="点检" icon={<FileOutline />}>
+            点检
+          </TabBar.Tab>
+          <TabBar.Tab key="profile" title="我的" icon={<UserOutline />}>
+            我的
+          </TabBar.Tab>
+        </TabBar>
       </div>
     </MobileLayout>
   );

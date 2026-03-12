@@ -18,6 +18,12 @@ func InitializeHandlers(db *gorm.DB, jwtSvc *jwt.Service, wechatBot *wechat.WeCh
 	inspectionRepo := repository.NewInspectionRepository(db)
 	standardRepo := repository.NewStandardRepository(db)
 	faultRepo := repository.NewFaultLevelRepository(db)
+	faultRecordRepo := repository.NewFaultRepository(db)
+	operationRepo := repository.NewOperationRepository(db)
+	maintenanceRepo := repository.NewMaintenanceRepository(db)
+	statusHistoryRepo := repository.NewEquipmentStatusHistoryRepository(db)
+	roleRepo := repository.NewRoleRepository(db)
+	apiRolePermRepo := repository.NewAPIRolePermissionRepository(db)
 
 	// 初始化服务
 	authSvc := service.NewAuthService(userRepo, jwtSvc)
@@ -25,7 +31,10 @@ func InitializeHandlers(db *gorm.DB, jwtSvc *jwt.Service, wechatBot *wechat.WeCh
 	inspectionSvc := service.NewInspectionService(inspectionRepo, standardRepo, equipmentRepo)
 	standardSvc := service.NewStandardService(standardRepo)
 	faultSvc := service.NewFaultLevelService(faultRepo)
-	statsSvc := service.NewStatsService(equipmentRepo, inspectionRepo)
+	faultRecordSvc := service.NewFaultService(faultRecordRepo, equipmentRepo, statusHistoryRepo, wechatBot)
+	operationSvc := service.NewOperationService(operationRepo, equipmentRepo, faultRecordRepo, statusHistoryRepo)
+	maintenanceSvc := service.NewMaintenanceService(maintenanceRepo, equipmentRepo, statusHistoryRepo)
+	statsSvc := service.NewStatsService(operationRepo, maintenanceRepo, faultRecordRepo, statusHistoryRepo, equipmentRepo)
 
 	// 初始化文件上传器
 	fileUploader := uploader.NewFileUploader("./uploads", 10) // 最大 10MB
@@ -39,4 +48,14 @@ func InitializeHandlers(db *gorm.DB, jwtSvc *jwt.Service, wechatBot *wechat.WeCh
 	handler.InitStatsHandler(statsSvc)
 	handler.InitFileHandler(fileUploader)
 	handler.InitWeChatBotHandler(wechatBot)
+	handler.InitUserHandler(userRepo)
+	handler.InitFaultRecordHandler(faultRecordSvc)
+	handler.InitOperationHandler(operationSvc)
+	handler.InitMaintenanceHandler(maintenanceSvc)
+	handler.InitRoleHandler(roleRepo)
+	handler.InitSSEHandler(equipmentSvc)
+
+	// 初始化角色权限（预加载 API 权限配置）
+	_ = apiRolePermRepo
+	_ = roleRepo
 }

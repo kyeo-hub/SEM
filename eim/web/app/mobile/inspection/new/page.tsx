@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import {
   Card,
   Button,
@@ -16,25 +16,7 @@ import { CameraOutline } from 'antd-mobile-icons';
 import { useSearchParams, useRouter } from 'next/navigation';
 import MobileLayout from '@/components/mobile/MobileLayout';
 
-interface Standard {
-  id: number;
-  part_name: string;
-  item_name: string;
-  content: string;
-  method: string;
-  limit_value: string;
-}
-
-interface InspectionItem {
-  standard_id: number;
-  part_name: string;
-  item_name: string;
-  result: 'normal' | 'abnormal' | 'skip';
-  remark: string;
-  files: File[];
-}
-
-export default function InspectionNewPage() {
+function InspectionNewPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const equipmentId = searchParams.get('equipmentId');
@@ -112,6 +94,7 @@ export default function InspectionNewPage() {
   };
 
   const handleSubmit = async (values: any) => {
+    console.log('点检提交:', values);
     try {
       setSubmitting(true);
 
@@ -119,6 +102,7 @@ export default function InspectionNewPage() {
       let signatureImage = '';
       if (canvasRef.current) {
         signatureImage = canvasRef.current.toDataURL('image/png');
+        console.log('签名图片长度:', signatureImage.length);
       }
 
       // 计算统计
@@ -129,6 +113,8 @@ export default function InspectionNewPage() {
       const abnormalCount = inspectionItems.filter(
         (i) => i.result === 'abnormal'
       ).length;
+
+      console.log('点检项统计:', { total: totalItems, normal: normalCount, abnormal: abnormalCount });
 
       // 构建点检明细
       const details = inspectionItems.map((item) => ({
@@ -161,9 +147,13 @@ export default function InspectionNewPage() {
       });
 
       const data = await res.json();
+      console.log('点检响应:', data);
+      
       if (data.code === 0) {
-        Toast.show({ content: '点检完成', icon: 'success' });
-        router.push('/mobile');
+        Toast.show({ content: '点检完成', icon: 'success', duration: 2000 });
+        setTimeout(() => {
+          router.push('/mobile');
+        }, 500);
       } else {
         Toast.show({ content: data.message || '提交失败', icon: 'fail' });
       }
@@ -267,7 +257,7 @@ export default function InspectionNewPage() {
   return (
     <MobileLayout title="点检录入" showBack>
       <div style={{ padding: 16 }}>
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout="vertical">
           {/* 基本信息 */}
           <Card title="基本信息" style={{ marginBottom: 16 }}>
             <Form.Item name="shift" label="班次" initialValue="before">
@@ -384,6 +374,7 @@ export default function InspectionNewPage() {
                   ref={canvasRef}
                   width={320}
                   height={200}
+                  willReadFrequently={true}
                   style={{
                     border: '1px solid #ddd',
                     borderRadius: 8,
@@ -418,14 +409,49 @@ export default function InspectionNewPage() {
             color="primary"
             size="large"
             block
-            htmlType="submit"
             loading={submitting}
             style={{ marginTop: 24 }}
+            onClick={async () => {
+              try {
+                const values = await form.validateFields();
+                console.log('表单验证通过:', values);
+                await handleSubmit(values);
+              } catch (error) {
+                console.error('表单验证失败:', error);
+                Toast.show({ content: '请填写必填项', icon: 'fail' });
+              }
+            }}
           >
             提交点检记录
           </Button>
         </Form>
       </div>
     </MobileLayout>
+  );
+}
+
+interface Standard {
+  id: number;
+  part_name: string;
+  item_name: string;
+  content: string;
+  method: string;
+  limit_value: string;
+}
+
+interface InspectionItem {
+  standard_id: number;
+  part_name: string;
+  item_name: string;
+  result: 'normal' | 'abnormal' | 'skip';
+  remark: string;
+  files: File[];
+}
+
+export default function InspectionNewPage() {
+  return (
+    <Suspense fallback={<div>加载中...</div>}>
+      <InspectionNewPageContent />
+    </Suspense>
   );
 }

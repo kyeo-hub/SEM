@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Upload, message } from 'antd';
-import { UploadOutlined } from '@ant-design/icons';
+import { UploadOutlined, PlusOutlined } from '@ant-design/icons';
 import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface';
 
 interface ImageUploaderProps {
@@ -10,17 +10,20 @@ interface ImageUploaderProps {
   onChange?: (url: string) => void;
   maxCount?: number;
   maxSize?: number; // MB
+  multiple?: boolean;
+  value?: string | string[];
+  onChange?: (url: string | string[]) => void;
 }
 
-export default function ImageUploader({ 
-  value, 
-  onChange, 
+export default function ImageUploader({
   maxCount = 1,
-  maxSize = 5 
+  maxSize = 5,
+  multiple = false,
+  value,
+  onChange
 }: ImageUploaderProps) {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = async (file: RcFile): Promise<boolean> => {
     // 验证文件大小
@@ -57,17 +60,24 @@ export default function ImageUploader({
       if (result.code === 0) {
         message.success('上传成功');
         const fileUrl = result.data.url;
-        
+
         // 更新文件列表
-        setFileList([{
-          uid: '-1',
+        const newFile = {
+          uid: file.uid || Date.now().toString(),
           name: file.name,
           status: 'done',
           url: fileUrl,
-        }]);
+        };
+        
+        const newList = multiple ? [...fileList, newFile] : [newFile];
+        setFileList(newList);
 
         // 触发 onChange
-        onChange?.(fileUrl);
+        if (multiple) {
+          onChange?.(newList.map(f => f.url!).filter(Boolean) as string[]);
+        } else {
+          onChange?.(fileUrl);
+        }
         return true;
       } else {
         message.error(result.message || '上传失败');
@@ -82,9 +92,14 @@ export default function ImageUploader({
     }
   };
 
-  const handleRemove = () => {
-    setFileList([]);
-    onChange?.('');
+  const handleRemove = (file: UploadFile) => {
+    const newList = fileList.filter(f => f.uid !== file.uid);
+    setFileList(newList);
+    if (multiple) {
+      onChange?.(newList.map(f => f.url!).filter(Boolean) as string[]);
+    } else {
+      onChange?.('');
+    }
   };
 
   const uploadProps: UploadProps = {
@@ -94,6 +109,7 @@ export default function ImageUploader({
     listType: 'picture-card',
     onRemove: handleRemove,
     beforeUpload: handleUpload,
+    multiple,
     onPreview: (file) => {
       if (file.url) {
         window.open(file.url, '_blank');
@@ -106,7 +122,7 @@ export default function ImageUploader({
       <Upload {...uploadProps}>
         {fileList.length < maxCount && (
           <div>
-            <UploadOutlined />
+            {multiple ? <PlusOutlined /> : <UploadOutlined />}
             <div style={{ marginTop: 8 }}>上传</div>
           </div>
         )}

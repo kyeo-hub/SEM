@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/kyeo-hub/eim/internal/model"
 	"github.com/kyeo-hub/eim/internal/repository"
+	"github.com/kyeo-hub/eim/pkg/qrcode"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -88,6 +90,12 @@ func (s *EquipmentService) GetEquipmentList(ctx context.Context, page, pageSize 
 	return s.equipmentRepo.List(ctx, offset, pageSize, filters)
 }
 
+// GetEquipmentListNoPagination 获取设备列表（无分页）
+func (s *EquipmentService) GetEquipmentListNoPagination(ctx context.Context, filters map[string]interface{}) ([]*model.Equipment, error) {
+	list, _, err := s.equipmentRepo.List(ctx, 0, 10000, filters)
+	return list, err
+}
+
 // UpdateEquipmentRequest 更新设备请求
 type UpdateEquipmentRequest struct {
 	Name                string  `json:"name"`
@@ -135,6 +143,17 @@ func (s *EquipmentService) UpdateEquipment(ctx context.Context, id int64, req *U
 
 // DeleteEquipment 删除设备
 func (s *EquipmentService) DeleteEquipment(ctx context.Context, id int64) error {
+	// 先删除关联的点检记录
+	if err := s.equipmentRepo.DeleteInspectionRecords(ctx, id); err != nil {
+		return fmt.Errorf("删除点检记录失败：%w", err)
+	}
+	
+	// 删除关联的状态历史记录
+	if err := s.equipmentRepo.DeleteStatusHistory(ctx, id); err != nil {
+		return fmt.Errorf("删除设备状态历史失败：%w", err)
+	}
+	
+	// 删除设备
 	return s.equipmentRepo.Delete(ctx, id)
 }
 
@@ -153,7 +172,7 @@ type UpdateStatusRequest struct {
 
 // UpdateStatus 更新设备状态
 func (s *EquipmentService) UpdateStatus(ctx context.Context, id int64, req *UpdateStatusRequest) (*model.Equipment, error) {
-	_, err := s.equipmentRepo.GetByID(ctx, id)
+	equipment, err := s.equipmentRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("设备不存在")
@@ -170,6 +189,28 @@ func (s *EquipmentService) UpdateStatus(ctx context.Context, id int64, req *Upda
 	}
 	if !validStatuses[req.Status] {
 		return nil, errors.New("无效的状态值")
+	}
+
+	// 开始作业时检查设备状态
+	if req.Status == "working" {
+		// 维保状态禁止作业
+		if equipment.Status == "maintenance" {
+			return nil, errors.New("设备正在维保中，禁止作业")
+		}
+
+		// 故障状态检查故障等级
+		if equipment.Status == "fault" && equipment.FaultLevelID != nil {
+			// 获取故障等级信息
+			faultLevel, err := s.equipmentRepo.GetFaultLevel(ctx, *equipment.FaultLevelID)
+			if err != nil {
+				return nil, errors.New("设备故障等级信息异常")
+			}
+
+			// L1 故障禁止作业
+			if !faultLevel.AllowWork {
+				return nil, errors.New(fmt.Sprintf("设备%s，禁止作业！", faultLevel.LevelName))
+			}
+		}
 	}
 
 	// 故障状态必须指定故障等级
@@ -206,11 +247,18 @@ func (s *EquipmentService) GetQRCode(ctx context.Context, id int64) (string, err
 		return "", err
 	}
 
-	// TODO: 生成二维码图片（使用 pkg/qrcode 包）
-	// 二维码内容格式：https://your-domain.com/mobile/equipment/{qr_code_uuid}
-	qrContent := "https://your-domain.com/mobile/equipment/" + equipment.QrCodeUUID
+	// 二维码内容格式：/mobile/equipment/{qr_code_uuid}
+	// 前端会拼接完整 URL
+	qrContent := "/mobile/equipment/" + equipment.QrCodeUUID
 
-	return qrContent, nil
+	// 生成二维码图片（base64）
+	generator := qrcode.New(300)
+	base64Img, err := generator.Generate(qrContent)
+	if err != nil {
+		return "", fmt.Errorf("生成二维码失败：%w", err)
+	}
+
+	return base64Img, nil
 }
 
 // GetFaultEquipments 获取故障设备列表

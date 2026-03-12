@@ -16,7 +16,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "EIM - 设备点检管理系统",
+  title: "EIM - 设备管理系统",
   description: "Equipment Inspection & Operation Management System",
 };
 

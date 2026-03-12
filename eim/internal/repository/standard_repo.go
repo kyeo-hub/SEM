@@ -7,17 +7,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// StandardRepository 点检标准数据访问层
+// StandardRepository 检查标准数据访问层
 type StandardRepository struct {
 	db *gorm.DB
 }
 
-// NewStandardRepository 创建点检标准仓库实例
+// NewStandardRepository 创建检查标准仓库实例
 func NewStandardRepository(db *gorm.DB) *StandardRepository {
 	return &StandardRepository{db: db}
 }
 
-// GetByEquipmentType 根据设备类型获取点检标准
+// GetByEquipmentType 根据设备类型获取检查标准
 func (r *StandardRepository) GetByEquipmentType(ctx context.Context, equipmentType string) ([]*model.InspectionStandard, error) {
 	var standards []*model.InspectionStandard
 	err := r.db.WithContext(ctx).
@@ -27,7 +27,7 @@ func (r *StandardRepository) GetByEquipmentType(ctx context.Context, equipmentTy
 	return standards, err
 }
 
-// GetAll 获取所有点检标准
+// GetAll 获取所有检查标准
 func (r *StandardRepository) GetAll(ctx context.Context) ([]*model.InspectionStandard, error) {
 	var standards []*model.InspectionStandard
 	err := r.db.WithContext(ctx).
@@ -36,7 +36,7 @@ func (r *StandardRepository) GetAll(ctx context.Context) ([]*model.InspectionSta
 	return standards, err
 }
 
-// GetByPart 根据部位获取点检标准
+// GetByPart 根据部位获取检查标准
 func (r *StandardRepository) GetByPart(ctx context.Context, equipmentType, partName string) ([]*model.InspectionStandard, error) {
 	var standards []*model.InspectionStandard
 	err := r.db.WithContext(ctx).
@@ -46,22 +46,22 @@ func (r *StandardRepository) GetByPart(ctx context.Context, equipmentType, partN
 	return standards, err
 }
 
-// Create 创建点检标准
+// Create 创建检查标准
 func (r *StandardRepository) Create(ctx context.Context, standard *model.InspectionStandard) error {
 	return r.db.WithContext(ctx).Create(standard).Error
 }
 
-// BulkCreate 批量创建点检标准
+// BulkCreate 批量创建检查标准
 func (r *StandardRepository) BulkCreate(ctx context.Context, standards []*model.InspectionStandard) error {
 	return r.db.WithContext(ctx).Create(&standards).Error
 }
 
-// Update 更新点检标准
+// Update 更新检查标准
 func (r *StandardRepository) Update(ctx context.Context, standard *model.InspectionStandard) error {
 	return r.db.WithContext(ctx).Save(standard).Error
 }
 
-// Delete 删除点检标准
+// Delete 删除检查标准
 func (r *StandardRepository) Delete(ctx context.Context, id int64) error {
 	return r.db.WithContext(ctx).Delete(&model.InspectionStandard{}, id).Error
 }
@@ -74,4 +74,17 @@ func (r *StandardRepository) GetEquipmentTypes(ctx context.Context) ([]string, e
 		Distinct().
 		Pluck("equipment_type", &types).Error
 	return types, err
+}
+
+// GetByID 根据 ID 获取检查标准
+func (r *StandardRepository) GetByID(ctx context.Context, id int64) (*model.InspectionStandard, error) {
+	var standard *model.InspectionStandard
+	err := r.db.WithContext(ctx).First(&standard, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return standard, nil
 }

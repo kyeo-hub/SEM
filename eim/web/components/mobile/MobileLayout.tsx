@@ -37,7 +37,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({
     <div style={{ minHeight: '100vh', background: '#f5f5f5' }}>
       {/* 顶部导航 */}
       <NavBar
-        back={showBack ? '← 返回' : null}
+        back={showBack}
         onBack={handleBack}
         style={{
           position: 'sticky',

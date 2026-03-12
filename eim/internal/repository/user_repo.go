@@ -88,3 +88,10 @@ func (r *UserRepository) GetByRole(ctx context.Context, role string) ([]*model.U
 func (r *UserRepository) BulkCreate(ctx context.Context, users []*model.User) error {
 	return r.db.WithContext(ctx).Create(&users).Error
 }
+
+// UpdatePassword 更新用户密码
+func (r *UserRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
+	return r.db.WithContext(ctx).Model(&model.User{}).
+		Where("id = ?", id).
+		Update("password_hash", passwordHash).Error
+}

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Toast, Space, Button } from 'antd-mobile';
-import { ScanOutlined } from 'antd-mobile-icons';
+import { ScanCodeOutline } from 'antd-mobile-icons';
 import { useRouter } from 'next/navigation';
 import MobileLayout from '@/components/mobile/MobileLayout';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -101,7 +101,7 @@ export default function MobileScanPage() {
   };
 
   return (
-    <MobileLayout title="扫码点检" showBack>
+    <MobileLayout title="扫码管理" showBack>
       <div style={{ padding: 24, textAlign: 'center' }}>
         {/* 扫码区域 */}
         <div
@@ -123,7 +123,7 @@ export default function MobileScanPage() {
               color="primary"
               size="large"
               block
-              icon={<ScanOutlined />}
+              icon={<ScanCodeOutline />}
               onClick={startScan}
             >
               开始扫码

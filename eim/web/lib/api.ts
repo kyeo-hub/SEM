@@ -42,8 +42,12 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
+      return Promise.reject(new Error('登录已过期，请重新登录'));
     }
-    console.error('API 请求错误:', error.response?.data?.message || error.message);
+    // 只在开发环境下打印详细错误
+    if (process.env.NODE_ENV === 'development') {
+      console.error('API 请求错误:', error.response?.data?.message || error.message);
+    }
     return Promise.reject(new Error(error.response?.data?.message || error.message));
   }
 );

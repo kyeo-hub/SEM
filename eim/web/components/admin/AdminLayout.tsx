@@ -55,6 +55,11 @@ const menuItems = [
     icon: <BarChartOutlined />,
     label: '统计分析',
   },
+  {
+    key: '/admin/users',
+    icon: <TeamOutlined />,
+    label: '用户管理',
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -99,7 +104,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             whiteSpace: 'nowrap',
             overflow: 'hidden',
           }}>
-            {collapsed ? 'EIM' : '设备点检管理系统'}
+            {collapsed ? 'EIM' : '设备管理系统'}
           </h1>
         </div>
         
