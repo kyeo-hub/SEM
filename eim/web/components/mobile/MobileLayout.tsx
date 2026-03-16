@@ -1,12 +1,7 @@
 'use client';
 
 import React from 'react';
-import { NavBar, TabBar } from 'antd-mobile';
-import {
-  AppOutline,
-  UnorderedListOutline,
-  UserOutline,
-} from 'antd-mobile-icons';
+import { NavBar } from 'antd-mobile';
 import { usePathname, useRouter } from 'next/navigation';
 
 interface MobileLayoutProps {
@@ -29,6 +24,11 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({
     if (onBack) {
       onBack();
     } else {
+      // 如果是设备操作页，返回扫码首页
+      if (pathname?.includes('/mobile/equipment/')) {
+        router.push('/mobile');
+        return;
+      }
       router.back();
     }
   };
@@ -49,23 +49,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({
       </NavBar>
 
       {/* 内容区域 */}
-      <div style={{ paddingBottom: 60 }}>{children}</div>
-
-      {/* 底部标签栏 */}
-      <TabBar
-        activeKey={pathname}
-        onChange={(key) => router.push(key)}
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          width: '100%',
-          borderTop: '1px solid #eee',
-        }}
-      >
-        <TabBar.Item key="/mobile" icon={<AppOutline />} title="首页" />
-        <TabBar.Item key="/mobile/scan" icon={<UnorderedListOutline />} title="扫码" />
-        <TabBar.Item key="/mobile/profile" icon={<UserOutline />} title="我的" />
-      </TabBar>
+      <div>{children}</div>
     </div>
   );
 };

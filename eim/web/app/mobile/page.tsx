@@ -1,192 +1,201 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card, Space, TabBar,Button } from 'antd-mobile';
-import {
-  CheckCircleOutline,
-  ExclamationOutline,
-  AppOutline,
-  ScanningOutline,
-  UserOutline,
-  FileOutline
-} from 'antd-mobile-icons';
+import { useState, useRef, useEffect } from 'react';
+import { Toast, Space, Button, Card } from 'antd-mobile';
+import { ScanCodeOutline, AppOutline, UserOutline } from 'antd-mobile-icons';
 import { useRouter } from 'next/navigation';
+import { Html5Qrcode } from 'html5-qrcode';
 import MobileLayout from '@/components/mobile/MobileLayout';
-
-interface DailyStats {
-  total_equipments: number;
-  working_count: number;
-  standby_count: number;
-  maintenance_count: number;
-  fault_count: number;
-  inspection_count: number;
-}
+import { useAuth } from '@/context/AuthContext';
 
 export default function MobileHome() {
   const router = useRouter();
-  const [stats, setStats] = useState<DailyStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated } = useAuth();
+  const [scanning, setScanning] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  // 检查登录状态
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/mobile/login');
+    }
+  }, [isAuthenticated, router]);
 
   useEffect(() => {
-    loadStats();
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(console.error);
+      }
+    };
   }, []);
 
-  const loadStats = async () => {
+  const startScan = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/stats/daily', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (data.code === 0) {
-        setStats(data.data);
+      setScanning(true);
+      const scanner = new Html5Qrcode('scanner-container');
+      scannerRef.current = scanner;
+
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length) {
+        const backCamera = devices.find(device =>
+          device.label.toLowerCase().includes('back') ||
+          device.label.toLowerCase().includes('environment')
+        ) || devices[0];
+
+        await scanner.start(
+          backCamera.id,
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          onScanSuccess,
+          onScanError
+        );
+
+        Toast.show({ content: '请对准二维码', icon: 'info', duration: 2000 });
+      } else {
+        throw new Error('未找到摄像头');
       }
     } catch (error) {
-      console.error('加载统计失败:', error);
-    } finally {
-      setLoading(false);
+      console.error('启动扫码失败:', error);
+      Toast.show({ content: '启动扫码失败，请检查摄像头权限', icon: 'fail', duration: 2000 });
+      setScanning(false);
     }
   };
 
-  const statusCards = [
-    {
-      title: '作业中',
-      value: stats?.working_count || 0,
-      color: '#52c41a',
-      icon: <CheckCircleOutline />,
-    },
-    {
-      title: '待命',
-      value: stats?.standby_count || 0,
-      color: '#1890ff',
-      icon: <AppOutline />,
-    },
-    {
-      title: '故障',
-      value: stats?.fault_count || 0,
-      color: '#ff4d4f',
-      icon: <ExclamationOutline />,
-    },
-    {
-      title: '总数',
-      value: stats?.total_equipments || 0,
-      color: '#722ed1',
-      icon: null,
-    },
-  ];
+  const stopScan = async () => {
+    if (scannerRef.current) {
+      await scannerRef.current.stop();
+      setScanning(false);
+    }
+  };
+
+  const onScanSuccess = (decodedText: string) => {
+    stopScan();
+    Toast.show({ content: '扫码成功', icon: 'success', duration: 1000 });
+
+    const match = decodedText.match(/\/mobile\/equipment\/(.+)$/);
+    if (match) {
+      router.push(`/mobile/equipment/${match[1]}`);
+    } else {
+      router.push(`/mobile/equipment/${decodedText}`);
+    }
+  };
+
+  const onScanError = (error: Error) => {
+    console.warn('扫码错误:', error);
+  };
 
   return (
-    <MobileLayout title="设备管理">
-      {/* 扫码卡片 */}
-      <Card
-        style={{
-          margin: 16,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: '#fff',
-        }}
-        styles={{ body: { padding: 24 } }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <ScanningOutline style={{ fontSize: 48, marginBottom: 16 }} />
-          <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>扫码点检</h2>
-          <p style={{ margin: 0, opacity: 0.8, fontSize: 14 }}>
-            扫描设备二维码进行点检
-          </p>
-          <Button
-            color="primary"
-            size="large"
-            style={{ marginTop: 16, background: '#fff', color: '#667eea' }}
-            block
-            onClick={() => router.push('/mobile/scan')}
-          >
-            开始扫码
-          </Button>
-        </div>
-      </Card>
+    <MobileLayout title="设备扫码">
+      <div style={{ padding: 24, textAlign: 'center' }}>
+        {/* 扫码区域 */}
+        <Card
+          style={{
+            marginBottom: 24,
+            background: '#000',
+            borderRadius: 12,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            id="scanner-container"
+            style={{
+              width: '100%',
+              height: 300,
+              background: '#000',
+            }}
+          />
+        </Card>
 
-      {/* 统计卡片 */}
-      <div style={{ padding: 16 }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#333' }}>
-          今日统计
-        </h3>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 12,
-        }}>
-          {statusCards.map((card, index) => (
-            <Card
-              key={index}
-              styles={{ body: { padding: 16, textAlign: 'center' } }}
+        {/* 操作按钮 */}
+        <Space direction="vertical" style={{ width: '100%', maxWidth: 400, margin: '0 auto' }}>
+          {!scanning ? (
+            <Button
+              color="primary"
+              size="large"
+              block
+              icon={<ScanCodeOutline />}
+              onClick={startScan}
             >
-              <div style={{ color: card.color, fontSize: 24, marginBottom: 8 }}>
-                {card.icon}
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#333' }}>
-                {card.value}
-              </div>
-              <div style={{ fontSize: 14, color: '#999', marginTop: 4 }}>
-                {card.title}
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
+              开始扫码
+            </Button>
+          ) : (
+            <Button
+              color="danger"
+              size="large"
+              block
+              onClick={stopScan}
+            >
+              停止扫码
+            </Button>
+          )}
 
-      {/* 快捷操作 */}
-      <div style={{ padding: 16, paddingBottom: 80 }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#333' }}>
-          快捷操作
-        </h3>
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Card
-            styles={{ body: { padding: 16 } }}
-            onClick={() => router.push('/mobile/equipment')}
+          <Button
+            size="large"
+            block
+            fill="outline"
+            onClick={() => {
+              const code = prompt('请输入设备编号:');
+              if (code) {
+                router.push(`/mobile/equipment/${code}`);
+              }
+            }}
           >
-            <Space justify="between">
-              <span>设备列表</span>
-              <span style={{ color: '#999' }}>→</span>
-            </Space>
-          </Card>
-          <Card
-            styles={{ body: { padding: 16 } }}
-            onClick={() => router.push('/mobile/inspection')}
-          >
-            <Space justify="between">
-              <span>点检记录</span>
-              <span style={{ color: '#999' }}>→</span>
-            </Space>
-          </Card>
+            手动输入设备编号
+          </Button>
         </Space>
-      </div>
 
-      {/* 底部导航栏 */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: '#fff',
-        borderTop: '1px solid #eee',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}>
-        <TabBar activeKey="home" onChange={(key) => {
-          if (key === 'profile') {
-            router.push('/mobile/profile');
-          }
+        {/* 快捷入口 */}
+        <div style={{ marginTop: 32, maxWidth: 400, margin: '32px auto 0' }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Card
+              styles={{ body: { padding: 16 } }}
+              onClick={() => router.push('/mobile/equipment/list')}
+            >
+              <Space justify="between">
+                <Space>
+                  <AppOutline style={{ fontSize: 20, color: '#1890ff' }} />
+                  <span>设备列表</span>
+                </Space>
+                <span style={{ color: '#999' }}>→</span>
+              </Space>
+            </Card>
+
+            <Card
+              styles={{ body: { padding: 16 } }}
+              onClick={() => router.push('/mobile/profile')}
+            >
+              <Space justify="between">
+                <Space>
+                  <UserOutline style={{ fontSize: 20, color: '#667eea' }} />
+                  <span>个人中心</span>
+                </Space>
+                <span style={{ color: '#999' }}>→</span>
+              </Space>
+            </Card>
+          </Space>
+        </div>
+
+        {/* 使用说明 */}
+        <div style={{
+          marginTop: 32,
+          padding: 16,
+          background: '#fff',
+          borderRadius: 8,
+          textAlign: 'left',
+          maxWidth: 400,
+          margin: '32px auto 0',
         }}>
-          <TabBar.Tab key="home" title="首页" icon={<ScanningOutline />}>
-            首页
-          </TabBar.Tab>
-          <TabBar.Tab key="inspection" title="点检" icon={<FileOutline />}>
-            点检
-          </TabBar.Tab>
-          <TabBar.Tab key="profile" title="我的" icon={<UserOutline />}>
-            我的
-          </TabBar.Tab>
-        </TabBar>
+          <h4 style={{ margin: '0 0 12px', fontSize: 15 }}>使用说明</h4>
+          <ol style={{ margin: 0, paddingLeft: 20, color: '#666', fontSize: 14 }}>
+            <li>点击"开始扫码"启动摄像头</li>
+            <li>将设备二维码对准扫描框</li>
+            <li>扫码成功后自动跳转设备操作页</li>
+            <li>也可点击"手动输入"输入设备编号</li>
+          </ol>
+        </div>
       </div>
     </MobileLayout>
   );

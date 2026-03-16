@@ -50,6 +50,7 @@ interface Equipment {
     allow_work: boolean;
     color: string;
   };
+  work_scene?: string;  // wharf(码头)/yard(货场)
   current_operation_id?: number;  // 当前作业记录 ID
 }
 
@@ -280,27 +281,41 @@ export default function EquipmentActionPage() {
   // 维保完成（设为待命）
   const handleCompleteMaintenance = async (values: any) => {
     console.log('维保完成提交:', values);
-    
+
     // 优先使用 window 对象上存储的 ID（避免异步状态更新问题）
     const maintenanceId = window._currentMaintenanceIdForConfirm || currentMaintenanceId;
     console.log('使用维保记录 ID:', maintenanceId);
-    
+
     // 检查 maintenance_id 是否存在
     if (!maintenanceId) {
       Toast.show({ content: '未找到当前维保记录，请重试', icon: 'fail' });
       return;
     }
-    
+
     try {
       const token = localStorage.getItem('token');
 
-      // 构建故障信息
-      let faultInfo = '';
-      if (values.has_fault && values.fault_level_id) {
+      // 根据维保结果确定设备状态和故障等级
+      let result: string;
+      let newFaultLevelId: number | null = null;
+      let statusText = '维保完成';
+
+      if (values.result === 'resolved') {
+        // 全部解决 - 设备变为待命，无故障
+        result = 'resolved';
+        newFaultLevelId = null;
+        statusText = '维保完成，设备已恢复待命';
+      } else if (values.result === 'partially_resolved') {
+        // 部分解决 - 设备仍为故障状态，故障等级降低
+        result = 'partially_resolved';
+        newFaultLevelId = values.fault_level_id ? parseInt(values.fault_level_id) : null;
         const faultLevel = faultLevelOptions.find((o) => o.value === values.fault_level_id);
-        faultInfo = ` [${faultLevel?.label || '故障'}] ${values.fault_description || ''}`;
+        statusText = `维保完成，${faultLevel?.label || '故障'}，设备仍需维保`;
       } else {
-        faultInfo = ' 无故障';
+        // 未解决 - 设备保持故障状态，故障等级不变
+        result = 'unresolved';
+        newFaultLevelId = equipment.fault_level_id || null;
+        statusText = '维保未完成，设备仍为故障状态';
       }
 
       // 调用维保完成 API
@@ -312,10 +327,10 @@ export default function EquipmentActionPage() {
         },
         body: JSON.stringify({
           maintenance_id: maintenanceId,
-          result: values.has_fault && values.fault_level_id ? 'partially_resolved' : 'resolved',
-          fault_level_id: values.has_fault && values.fault_level_id ? parseInt(values.fault_level_id) : null,
+          result: result,
+          fault_level_id: newFaultLevelId,
           actual_content: values.reason || '维保完成',
-          next_plan: '',
+          next_plan: values.result !== 'resolved' ? values.next_plan || '' : '',
           maintainer_signature: '',
           acceptor_name: values.operator,
           acceptor_signature: '',
@@ -331,7 +346,7 @@ export default function EquipmentActionPage() {
 
       if (data.code === 0) {
         Toast.show({
-          content: values.has_fault && values.fault_level_id ? `维保完成，${faultInfo}` : '维保完成',
+          content: statusText,
           icon: 'success',
           duration: 2000
         });
@@ -651,21 +666,43 @@ export default function EquipmentActionPage() {
               form={workForm}
               layout="vertical"
             >
-              <Form.Item
-                name="ship_name"
-                label="船名"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="请输入船名" />
-              </Form.Item>
-              <Form.Item
-                name="cargo_name"
-                label="货品名称"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="请输入货品名称" />
-              </Form.Item>
-              <Form.Item name="operator" label="操作人">
+              {/* 根据设备作业场景判断是否需要填写船名和货品 */}
+              {equipment.work_scene === 'wharf' ? (
+                <>
+                  <Form.Item
+                    name="ship_name"
+                    label="船名"
+                    rules={[{ required: true, message: '请输入船名' }]}
+                  >
+                    <Input placeholder="请输入作业船舶名称" />
+                  </Form.Item>
+                  <Form.Item
+                    name="cargo_name"
+                    label="货品名称"
+                    rules={[{ required: true, message: '请输入货品名称' }]}
+                  >
+                    <Input placeholder="请输入货品名称" />
+                  </Form.Item>
+                </>
+              ) : (
+                <>
+                  <Form.Item
+                    name="ship_name"
+                    label="船名"
+                    extra="货场/仓库设备可不填"
+                  >
+                    <Input placeholder="请输入船名（可选）" />
+                  </Form.Item>
+                  <Form.Item
+                    name="cargo_name"
+                    label="货品名称"
+                    extra="货场/仓库设备可不填"
+                  >
+                    <Input placeholder="请输入货品名称（可选）" />
+                  </Form.Item>
+                </>
+              )}
+              <Form.Item name="operator" label="操作人" rules={[{ required: true }]}>
                 <Input placeholder="请输入操作人姓名" />
               </Form.Item>
             </Form>
@@ -708,6 +745,79 @@ export default function EquipmentActionPage() {
               form={standbyForm}
               layout="vertical"
             >
+              {/* 维保状态时显示维保结果选择 */}
+              {equipment.status === 'maintenance' && (
+                <>
+                  <Form.Item
+                    name="result"
+                    label="维保结果"
+                    initialValue="resolved"
+                    rules={[{ required: true }]}
+                  >
+                    <Selector
+                      options={[
+                        { label: '全部解决', value: 'resolved', color: '#52c41a' },
+                        { label: '部分解决', value: 'partially_resolved', color: '#faad14' },
+                        { label: '未解决', value: 'unresolved', color: '#ff4d4f' },
+                      ]}
+                      columns={1}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="reason"
+                    label="实际完成的维保工作"
+                    rules={[{ required: true, message: '请填写实际完成的维保工作' }]}
+                  >
+                    <Input
+                      placeholder="请描述实际完成的维保工作内容"
+                      maxLength={500}
+                      rows={3}
+                      showCount
+                    />
+                  </Form.Item>
+
+                  {/* 部分解决或未解决时显示故障等级和后续计划 */}
+                  <Form.Item
+                    noStyle
+                    shouldUpdate={(prev, current) => prev.result !== current.result}
+                  >
+                    {() => {
+                      const result = standbyForm.getFieldValue('result');
+                      const showFaultFields = result === 'partially_resolved' || result === 'unresolved';
+                      
+                      return showFaultFields ? (
+                        <>
+                          {result === 'partially_resolved' && (
+                            <Form.Item
+                              name="fault_level_id"
+                              label="维保后的故障等级"
+                              rules={[{ required: true, message: '请选择维保后的故障等级' }]}
+                            >
+                              <Selector options={faultLevelOptions} columns={1} />
+                            </Form.Item>
+                          )}
+
+                          <Form.Item
+                            name="next_plan"
+                            label="后续计划"
+                            extra={result === 'unresolved' ? '未解决部分的后续安排' : '剩余工作的计划'}
+                            rules={[{ required: true, message: '请填写后续计划' }]}
+                          >
+                            <Input
+                              placeholder="请填写后续维保计划或安排"
+                              maxLength={500}
+                              rows={3}
+                              showCount
+                            />
+                          </Form.Item>
+                        </>
+                      ) : null;
+                    }}
+                  </Form.Item>
+                </>
+              )}
+
               {/* 作业状态时显示吨位字段 */}
               {equipment.status === 'working' && (
                 <Form.Item
@@ -722,16 +832,8 @@ export default function EquipmentActionPage() {
                 </Form.Item>
               )}
 
-              <Form.Item name="reason" label="原因说明">
-                <Input
-                  placeholder="请输入原因（可选）"
-                  maxLength={200}
-                  rows={2}
-                />
-              </Form.Item>
-
-              {/* 作业状态或维保状态时显示故障选项 */}
-              {(equipment.status === 'working' || equipment.status === 'maintenance') && (
+              {/* 作业状态时显示故障选项 */}
+              {equipment.status === 'working' && (
                 <>
                   <Form.Item
                     name="has_fault"
@@ -779,6 +881,17 @@ export default function EquipmentActionPage() {
                     />
                   </Form.Item>
                 </>
+              )}
+
+              {/* 非维保状态时显示原因说明 */}
+              {equipment.status !== 'maintenance' && (
+                <Form.Item name="reason" label="原因说明">
+                  <Input
+                    placeholder="请输入原因（可选）"
+                    maxLength={200}
+                    rows={2}
+                  />
+                </Form.Item>
               )}
 
               <Form.Item name="operator" label="操作人" rules={[{ required: true }]}>

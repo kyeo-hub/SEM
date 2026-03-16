@@ -53,6 +53,7 @@ type Equipment struct {
 	Status              string     `gorm:"size:20" json:"status"` // working/standby/maintenance/fault
 	FaultLevelID        *int64     `json:"fault_level_id"`
 	FaultLevel          *FaultLevel `gorm:"foreignKey:FaultLevelID" json:"fault_level,omitempty"`
+	WorkScene           string     `gorm:"size:20;default:'yard'" json:"work_scene"` // wharf(码头)/yard(货场)
 	CurrentShip         string     `gorm:"size:100" json:"current_ship"`
 	CurrentCargo        string     `gorm:"size:100" json:"current_cargo"`
 	QrCodeUUID          string     `gorm:"size:100;uniqueIndex" json:"qr_code_uuid"`

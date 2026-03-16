@@ -83,10 +83,12 @@ function getUserPermissions(role: string): PermissionControl {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
-  // 初始化时检查登录状态
+  // 初始化时检查登录状态（仅在客户端）
   useEffect(() => {
+    setMounted(true);
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     if (storedToken && storedUser) {
@@ -94,6 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(JSON.parse(storedUser));
     }
   }, []);
+
+  // SSR 时正常渲染 children，但 localStorage 操作仅在客户端执行
+  // mounted 状态用于指示是否在客户端
 
   const login = async (username: string, password: string) => {
     const data = await api.post<LoginResponse>('/auth/login', { username, password });
